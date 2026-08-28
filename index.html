@@ -80,18 +80,33 @@ select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid 
 }
 .seg button:hover{background:var(--surface-1)}
 .seg button[aria-pressed=true]{background:var(--series-1);color:#fff;font-weight:600}
+.seg button:disabled{color:var(--text-muted);opacity:.4;cursor:not-allowed}
+.seg button:disabled:hover{background:transparent}
 .go{
   font:inherit;font-size:14px;font-weight:600;padding:9px 20px;min-height:38px;border:0;border-radius:8px;
   background:var(--series-1);color:#fff;cursor:pointer;
 }
 .go:hover{filter:brightness(1.08)}
 .go:disabled{opacity:.5;cursor:progress}
+.go.busy{opacity:1;background:var(--surface-2);color:var(--text-secondary);cursor:progress}
 .hint{font-size:12px;color:var(--text-muted);margin-top:9px}
 details.adv{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
 details.adv summary{font-size:12.5px;color:var(--text-secondary);cursor:pointer;user-select:none}
 details.adv summary:hover{color:var(--text-primary)}
 details.adv .filter-row{margin-top:13px}
 .hidden{display:none !important}
+
+/* Pendant un recalcul, le résultat précédent reste affiché mais nettement en retrait :
+   on ne peut pas le confondre avec un résultat à jour, et la page ne saute pas. */
+/* Le voile porte sur le résultat, jamais sur l'avertissement qui l'explique. */
+#results.stale > *:not(#outdated){opacity:.32;filter:saturate(.35);transition:opacity .15s ease}
+#results.stale{pointer-events:none}
+#results.stale > #outdated{pointer-events:auto}
+.outdated{
+  border:1px solid var(--warning);border-left-width:3px;border-radius:var(--radius);
+  background:var(--surface-1);padding:11px 15px;margin-bottom:18px;font-size:13.5px;color:var(--text-primary);
+}
+.outdated b{font-weight:650}
 
 /* -------------------------------------------------------------- status */
 .status{
@@ -324,6 +339,8 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
 </div>
 
 <main id="results" class="hidden">
+
+  <div class="outdated hidden" id="outdated"></div>
 
   <section class="card hero" aria-label="Résultat principal">
     <div class="main">
@@ -1298,6 +1315,26 @@ function resolveRange() {
   return { from, to: to > today ? today : to, clamped: to > today };
 }
 
+/** Un trimestre n'existe que s'il a commencé : Q4 2026 n'est pas sélectionnable en août 2026. */
+function quarterStarted(year, q) {
+  return `${year}-${String((q - 1) * 3 + 1).padStart(2, "0")}-01` <= isoToday();
+}
+
+/** Grise les trimestres à venir et rabat la sélection sur le dernier trimestre valide. */
+function syncQuarterAvailability() {
+  let latestValid = null;
+  for (const b of $("fQuarter").querySelectorAll("button[data-q]")) {
+    const q = +b.dataset.q;
+    const ok = quarterStarted(state.year, q);
+    b.disabled = !ok;
+    b.title = ok ? "" : `Le trimestre Q${q} ${state.year} n'a pas encore commencé.`;
+    if (ok) latestValid = q;
+  }
+  if (!quarterStarted(state.year, state.quarter) && latestValid) state.quarter = latestValid;
+  for (const b of $("fQuarter").querySelectorAll("button[data-q]"))
+    b.setAttribute("aria-pressed", String(+b.dataset.q === state.quarter));
+}
+
 function updateHint() {
   try {
     const { from, to, clamped } = resolveRange();
@@ -1314,13 +1351,38 @@ function updateHint() {
 
 let running = false;
 
+/** Met en retrait le résultat affiché tant qu'on ne sait pas s'il est encore valable. */
+function markStale(on) {
+  const res = $("results");
+  if (!res.classList.contains("hidden")) res.classList.toggle("stale", on);
+}
+
+/** Bandeau posé sur un résultat qui n'est plus celui demandé. */
+function showOutdated(html) {
+  const n = $("outdated");
+  if (html) { n.innerHTML = html; n.classList.remove("hidden"); }
+  else { n.classList.add("hidden"); n.innerHTML = ""; }
+}
+
+const clockNow = () =>
+  new Intl.DateTimeFormat("fr-CH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
+
 async function run() {
   if (running) return;
-  const range = resolveRange();
   running = true;
-  $("btnRun").disabled = true;
+  const btn = $("btnRun");
+  btn.disabled = true;
+  btn.classList.add("busy");
+  btn.textContent = "Calcul en cours…";
+  // Le résultat précédent reste visible mais nettement en retrait : impossible de le
+  // prendre pour le nouveau tant que celui-ci n'a pas abouti.
+  markStale(true);
+  showOutdated("");
 
   try {
+    // resolveRange() doit lever à l'intérieur du try : sinon l'erreur ressort de la
+    // promesse sans message ni bouton réarmé.
+    const range = resolveRange();
     // Marge d'un jour pour couvrir toute la journée finale, absorbée par la dernière
     // tranche plutôt qu'en ouvrant une tranche — donc une requête — de plus.
     const chunks = chunkRange(range.from, range.to);
@@ -1384,9 +1446,12 @@ async function run() {
     res.range = range;
     res.fxNote = fxNote;
     res.usedFx = needFx && !fxNote;
+    res.computedAt = clockNow();
     state.last = res;
 
     render(res);
+    markStale(false);
+    showOutdated("");
 
     const cov = res.coverage;
     const kind = cov > 0.98 ? "ok" : cov > 0.85 ? "warn" : "err";
@@ -1401,10 +1466,21 @@ async function run() {
     console.error(e);
     if (e instanceof ApiUnreachable) setStatus(unreachableHtml(e), "err");
     else setStatus("<strong>Erreur :</strong> " + esc(e.message), "err");
+
+    // Ce qui reste à l'écran est l'ancien calcul : le dire, plutôt que de laisser douter.
+    const prev = state.last;
+    if (prev) {
+      showOutdated("<b>Ce résultat n'est plus à jour.</b> Il correspond au calcul de "
+        + `${esc(frDate(prev.range.from))} → ${esc(frDate(prev.range.to))}, lancé à ${esc(prev.computedAt)}. `
+        + "Le calcul demandé n'a pas abouti.");
+      markStale(true);
+    }
   } finally {
     onNetworkWait = null;
     running = false;
-    $("btnRun").disabled = false;
+    btn.disabled = false;
+    btn.classList.remove("busy");
+    btn.textContent = "Calculer";
   }
 }
 
@@ -1453,7 +1529,8 @@ function render(res) {
   $("heroSub").innerHTML =
     `${frDate(res.range.from)} → ${frDate(res.range.to)}`
     + (res.range.clamped ? " · trimestre en cours" : "")
-    + ` · ${nf(pickVal(t, "weighted"), 2)} ${cur}/MWh`;
+    + ` · ${nf(pickVal(t, "weighted"), 2)} ${cur}/MWh`
+    + (res.computedAt ? ` · calculé à ${esc(res.computedAt)}` : "");
 
   const tiles = [
     { k: "Prix moyen de base", v: nf(CENT(pickVal(t, "base")), 2), u: unit,
@@ -1615,8 +1692,7 @@ function bind() {
   state.year = yNow;
   state.quarter = qNow;
   $("selYear").value = String(yNow);
-  $("fQuarter").querySelectorAll("button").forEach((b) =>
-    b.setAttribute("aria-pressed", String(+b.dataset.q === qNow)));
+  syncQuarterAvailability();
 
   const qStart = `${yNow}-${String((qNow - 1) * 3 + 1).padStart(2, "0")}-01`;
   $("dFrom").value = qStart;
@@ -1644,12 +1720,12 @@ function bind() {
   $("modeQuarter").onclick = () => setMode("quarter");
   $("modeCustom").onclick = () => setMode("custom");
 
-  $("selYear").onchange = (e) => { state.year = +e.target.value; updateHint(); };
+  $("selYear").onchange = (e) => { state.year = +e.target.value; syncQuarterAvailability(); updateHint(); };
   $("fQuarter").onclick = (e) => {
     const b = e.target.closest("button[data-q]");
-    if (!b) return;
+    if (!b || b.disabled) return;
     state.quarter = +b.dataset.q;
-    $("fQuarter").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    syncQuarterAvailability();
     updateHint();
   };
   $("dFrom").onchange = (e) => { state.from = e.target.value; updateHint(); };
