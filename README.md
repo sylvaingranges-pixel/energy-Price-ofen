@@ -1,0 +1,100 @@
+# Prix de reprise du solaire injecté — Suisse
+
+Petite application web **autonome** (un seul fichier HTML, aucune dépendance, aucun build) qui estime en
+direct le **prix de marché de référence** photovoltaïque au sens de l'art. 15 OEneR — celui que l'OFEN ne
+publie qu'a posteriori, une fois le trimestre terminé.
+
+Le principe : récupérer les prix spot day-ahead suisses et la courbe de production PV nationale sur
+[energy-charts.info](https://www.energy-charts.info) (Fraunhofer ISE), puis calculer la moyenne des prix
+**pondérée par la production** :
+
+```
+PMR = Σ (prix_t × production_t × Δt) ÷ Σ (production_t × Δt)
+```
+
+C'est exactement la définition retenue par l'OFEN, appliquée à des données disponibles le jour même.
+
+## Utilisation
+
+### 1. Ouvrir le fichier directement
+
+Double-cliquez sur `index.html`. Si votre navigateur autorise l'appel à `api.energy-charts.info` depuis un
+fichier local, tout fonctionne immédiatement.
+
+### 2. Passer par le serveur local (recommandé)
+
+La plupart des navigateurs bloquent les requêtes réseau depuis `file://` (politique CORS). Dans ce cas :
+
+```sh
+python3 serve.py
+```
+
+Le navigateur s'ouvre sur <http://localhost:8765>. `serve.py` sert la page et relaie `/api/...` vers
+energy-charts, ce qui supprime le problème. Aucune dépendance : bibliothèque standard Python 3 uniquement.
+
+```sh
+python3 serve.py 9000      # autre port
+python3 serve.py --no-open # sans ouvrir le navigateur
+```
+
+## Ce que fait l'application
+
+**Entrées**
+
+- **Trimestre** — année + Q1/Q2/Q3/Q4. Si le trimestre est en cours, la période s'arrête automatiquement
+  au jour d'aujourd'hui : c'est le cas d'usage « anticiper le prix avant sa publication ».
+- **Dates libres** — n'importe quelle période, du jour à l'année.
+- **Pondération** — solaire par défaut ; la liste s'aligne sur les technologies réellement renvoyées par
+  l'API (éolien, hydraulique, biomasse…).
+- **Monnaie** — CHF au taux BCE journalier (récupéré sur [frankfurter.dev](https://frankfurter.dev),
+  report du dernier jour ouvré), CHF à taux fixe, ou EUR brut.
+
+**Sorties**
+
+- Le prix de référence en Rp./kWh et en CHF/MWh.
+- Le prix moyen de base sur la même période et le **facteur de valeur** (pondéré ÷ base) : la mesure de la
+  cannibalisation de midi.
+- L'évolution journalière et la **courbe cumulée**, qui converge vers le chiffre trimestriel définitif —
+  utile pour voir si le trimestre est déjà « joué » ou encore ouvert.
+- Le profil moyen de la journée : prix horaire et production horaire, l'un au-dessus de l'autre.
+- Récapitulatif mensuel, détail journalier, export CSV des deux.
+- Part de la production tombant sous un prix négatif, et taux de couverture des données.
+
+Le calcul respecte l'heure suisse (`Europe/Zurich`), y compris les journées de 23 h et 25 h aux changements
+d'heure, et aligne en escalier des séries de pas différents (prix horaire ou au quart d'heure, production
+au quart d'heure).
+
+## Précision
+
+C'est une **estimation**, pas la valeur officielle :
+
+- l'OFEN pondère par l'injection mesurée des installations à courbe de charge de la technologie ; cette page
+  utilise la production nationale agrégée. Le profil est très proche, l'assiette n'est pas identique ;
+- le taux de change retenu par l'OFEN peut différer du taux BCE journalier utilisé ici ;
+- les toutes dernières heures publiées peuvent être révisées.
+
+Attendez-vous à un écart de quelques pourcents. La valeur qui fait foi reste celle publiée par l'OFEN, au
+plus tard 10 jours ouvrés après la fin du trimestre
+([opendata.swiss](https://opendata.swiss/fr/dataset/referenz-marktpreise-gemass-art-15-enfv)).
+
+## Sous le capot
+
+| Fichier      | Rôle |
+|--------------|------|
+| `index.html` | Toute l'application : interface, calcul, graphiques SVG écrits à la main. |
+| `serve.py`   | Serveur local optionnel + relais CORS vers energy-charts. |
+
+Requêtes utilisées (découpées en tranches de 35 jours, mises en cache dans le navigateur) :
+
+```
+GET https://api.energy-charts.info/price?bzn=CH&start=YYYY-MM-DD&end=YYYY-MM-DD
+GET https://api.energy-charts.info/public_power?country=ch&start=YYYY-MM-DD&end=YYYY-MM-DD
+```
+
+Le cache est court pour la période en cours (30 min) et long pour les périodes closes (30 jours) ; il se
+vide depuis le panneau « Source des données & options avancées ».
+
+## Données
+
+Prix et production : [energy-charts.info](https://www.energy-charts.info), Fraunhofer ISE — CC BY 4.0.
+Taux de change : [frankfurter.dev](https://frankfurter.dev), taux de référence BCE.

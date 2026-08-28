@@ -1,0 +1,1546 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prix de reprise PV — Suisse</title>
+<style>
+/* ---------------------------------------------------------------- tokens */
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface-1:#fcfcfb; --surface-2:#f4f3ef;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a;
+  --good:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+  --accent-soft:#cde2fb;
+  --radius:10px;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#222221;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
+    --good:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+    --accent-soft:#184f95;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#222221;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
+  --accent-soft:#184f95;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--text-primary);
+  font-family:var(--font); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 72px}
+
+/* --------------------------------------------------------------- header */
+header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:22px;line-height:1.25;margin:0 0 4px;font-weight:650;letter-spacing:-.01em}
+.subtitle{color:var(--text-secondary);font-size:13.5px;margin:0;max-width:62ch}
+.theme-btn{
+  background:var(--surface-1);border:1px solid var(--border);color:var(--text-secondary);
+  border-radius:8px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap;
+}
+.theme-btn:hover{background:var(--surface-2)}
+
+/* ------------------------------------------------------------- controls */
+.filters{
+  background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px 18px;margin-bottom:20px;
+}
+.filter-row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field > label,.field > .lbl{
+  font-size:11px;text-transform:uppercase;letter-spacing:.055em;
+  color:var(--text-muted);font-weight:600;
+}
+select,input[type=date],input[type=number],input[type=text]{
+  font:inherit;font-size:14px;padding:7px 9px;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);
+  min-height:36px;
+}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--series-1);outline-offset:1px}
+.seg{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px}
+.seg button{
+  font:inherit;font-size:13.5px;padding:6px 13px;min-height:30px;border:0;border-radius:6px;
+  background:transparent;color:var(--text-secondary);cursor:pointer;white-space:nowrap;
+}
+.seg button:hover{background:var(--surface-1)}
+.seg button[aria-pressed=true]{background:var(--series-1);color:#fff;font-weight:600}
+.go{
+  font:inherit;font-size:14px;font-weight:600;padding:9px 20px;min-height:38px;border:0;border-radius:8px;
+  background:var(--series-1);color:#fff;cursor:pointer;
+}
+.go:hover{filter:brightness(1.08)}
+.go:disabled{opacity:.5;cursor:progress}
+.hint{font-size:12px;color:var(--text-muted);margin-top:9px}
+details.adv{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+details.adv summary{font-size:12.5px;color:var(--text-secondary);cursor:pointer;user-select:none}
+details.adv summary:hover{color:var(--text-primary)}
+details.adv .filter-row{margin-top:13px}
+.hidden{display:none !important}
+
+/* -------------------------------------------------------------- status */
+.status{
+  border-radius:var(--radius);padding:12px 15px;margin-bottom:20px;font-size:13.5px;
+  border:1px solid var(--border);background:var(--surface-1);color:var(--text-secondary);
+  display:flex;gap:10px;align-items:flex-start;
+}
+.status .ico{flex:none;font-size:14px;line-height:1.45}
+.status.err{border-color:var(--critical);color:var(--text-primary)}
+.status.err .ico{color:var(--critical)}
+.status.warn .ico{color:var(--warning)}
+.status.ok .ico{color:var(--good)}
+.status code{background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:12.5px}
+.bar{height:3px;background:var(--surface-2);border-radius:2px;overflow:hidden;margin-top:9px}
+.bar > i{display:block;height:100%;background:var(--series-1);width:0;transition:width .25s ease}
+
+/* ---------------------------------------------------------------- cards */
+.card{
+  background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;margin-bottom:18px;
+}
+.card > h2{
+  font-size:14px;font-weight:650;margin:0 0 3px;letter-spacing:-.005em;
+}
+.card > .cap{font-size:12.5px;color:var(--text-muted);margin:0 0 16px}
+
+/* ----------------------------------------------------------- hero + tiles */
+.hero{
+  display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start;
+  padding:22px 24px 20px;
+}
+.hero .main{min-width:230px}
+.hero .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.055em;color:var(--text-muted);font-weight:600;margin-bottom:6px}
+.hero .figure{font-size:56px;line-height:1.02;font-weight:640;letter-spacing:-.025em;color:var(--series-1)}
+.hero .figure small{font-size:20px;font-weight:600;letter-spacing:0;margin-left:6px;color:var(--text-secondary)}
+.hero .sub{font-size:13px;color:var(--text-secondary);margin-top:8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:14px 26px;flex:1 1 380px}
+.tile .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:600}
+.tile .v{font-size:21px;font-weight:600;letter-spacing:-.01em;margin-top:3px}
+.tile .u{font-size:12px;color:var(--text-muted);font-weight:500;margin-left:3px}
+.tile .n{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+
+/* --------------------------------------------------------------- legend */
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 12px;font-size:12.5px;color:var(--text-secondary)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:14px;height:2.5px;border-radius:2px;flex:none}
+
+/* ---------------------------------------------------------------- chart */
+.chartbox{position:relative;width:100%;overflow-x:auto;border-radius:6px}
+.chartbox:focus{outline:none}
+.chartbox:focus-visible{outline:2px solid var(--series-1);outline-offset:3px}
+svg.chart{display:block;width:100%;min-width:520px;height:auto;overflow:visible}
+svg.chart .gridline{stroke:var(--grid);stroke-width:1;shape-rendering:crispEdges}
+svg.chart .axisline{stroke:var(--axis);stroke-width:1;shape-rendering:crispEdges}
+svg.chart .tick{fill:var(--text-muted);font-size:11px;font-variant-numeric:tabular-nums}
+svg.chart .axistitle{fill:var(--text-muted);font-size:11px}
+svg.chart .lbl{fill:var(--text-secondary);font-size:11.5px;font-weight:600}
+svg.chart .zero{stroke:var(--axis);stroke-width:1.5;shape-rendering:crispEdges}
+.tip{
+  position:absolute;pointer-events:none;z-index:5;opacity:0;transition:opacity .1s;
+  background:var(--surface-1);border:1px solid var(--border);border-radius:8px;
+  padding:9px 11px;font-size:12.5px;color:var(--text-primary);
+  box-shadow:0 6px 22px rgba(0,0,0,.16);min-width:150px;
+}
+.tip .t{font-weight:650;margin-bottom:5px;font-size:12px}
+.tip .r{display:flex;justify-content:space-between;gap:14px;line-height:1.7}
+.tip .r i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:6px;flex:none}
+.tip .r b{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ---------------------------------------------------------------- table */
+.tablewrap{overflow-x:auto;margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:520px}
+th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{
+  font-size:11px;text-transform:uppercase;letter-spacing:.045em;color:var(--text-muted);
+  font-weight:600;border-bottom:1px solid var(--axis);position:sticky;top:0;background:var(--surface-1);
+}
+tbody td{font-variant-numeric:tabular-nums;color:var(--text-secondary)}
+tbody td:first-child{color:var(--text-primary);font-weight:500}
+tbody tr:last-child td{border-bottom:0}
+tfoot td{font-weight:650;color:var(--text-primary);border-top:1px solid var(--axis);font-variant-numeric:tabular-nums}
+.neg{color:var(--critical)}
+.scroll-y{max-height:420px;overflow-y:auto}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.ghost{
+  font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--text-secondary);
+}
+.ghost:hover{background:var(--surface-1);color:var(--text-primary)}
+
+/* ---------------------------------------------------------------- notes */
+.notes{font-size:13px;color:var(--text-secondary)}
+.notes h3{font-size:13px;font-weight:650;color:var(--text-primary);margin:16px 0 6px}
+.notes h3:first-child{margin-top:0}
+.notes p{margin:0 0 8px}
+.notes ul{margin:0 0 8px;padding-left:20px}
+.notes li{margin-bottom:4px}
+.notes code{background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:12px;word-break:break-all}
+.notes a{color:var(--series-1)}
+.formula{
+  background:var(--surface-2);border-radius:8px;padding:12px 15px;margin:8px 0 12px;
+  font-size:14px;text-align:center;color:var(--text-primary);overflow-x:auto;
+}
+footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
+@media (max-width:640px){
+  .wrap{padding:20px 14px 56px}
+  .hero{gap:22px;padding:18px}
+  .hero .figure{font-size:44px}
+  .filter-row{gap:14px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>Prix de reprise du solaire injecté — Suisse</h1>
+    <p class="subtitle">Estimation du prix de marché de référence PV (art.&nbsp;15 OEneR) à partir des prix spot
+    day-ahead suisses et de la courbe de production photovoltaïque nationale, avant publication trimestrielle de l'OFEN.</p>
+  </div>
+  <button class="theme-btn" id="themeBtn" type="button">Thème auto</button>
+</header>
+
+<section class="filters" aria-label="Paramètres du calcul">
+  <div class="filter-row">
+    <div class="field">
+      <span class="lbl" id="lblMode">Période</span>
+      <div class="seg" role="group" aria-labelledby="lblMode">
+        <button type="button" id="modeQuarter" aria-pressed="true">Trimestre</button>
+        <button type="button" id="modeCustom" aria-pressed="false">Dates libres</button>
+      </div>
+    </div>
+
+    <div class="field" id="fYear">
+      <label for="selYear">Année</label>
+      <select id="selYear"></select>
+    </div>
+
+    <div class="field" id="fQuarter">
+      <span class="lbl" id="lblQ">Trimestre</span>
+      <div class="seg" role="group" aria-labelledby="lblQ">
+        <button type="button" data-q="1" aria-pressed="false">Q1</button>
+        <button type="button" data-q="2" aria-pressed="false">Q2</button>
+        <button type="button" data-q="3" aria-pressed="false">Q3</button>
+        <button type="button" data-q="4" aria-pressed="false">Q4</button>
+      </div>
+    </div>
+
+    <div class="field hidden" id="fFrom">
+      <label for="dFrom">Du</label>
+      <input type="date" id="dFrom">
+    </div>
+    <div class="field hidden" id="fTo">
+      <label for="dTo">Au (inclus)</label>
+      <input type="date" id="dTo">
+    </div>
+
+    <div class="field">
+      <label for="selTech">Pondération</label>
+      <select id="selTech"><option value="Solar" data-short="solaire">Solaire (PV)</option></select>
+    </div>
+
+    <div class="field">
+      <label for="selCur">Monnaie</label>
+      <select id="selCur">
+        <option value="chf-daily">CHF — taux BCE journalier</option>
+        <option value="chf-fixed">CHF — taux fixe</option>
+        <option value="eur">EUR (brut, sans conversion)</option>
+      </select>
+    </div>
+
+    <div class="field hidden" id="fRate">
+      <label for="inRate">EUR → CHF</label>
+      <input type="number" id="inRate" value="0.94" step="0.001" min="0.1" max="3" style="width:96px">
+    </div>
+
+    <div class="field">
+      <span class="lbl">&nbsp;</span>
+      <button class="go" id="btnRun" type="button">Calculer</button>
+    </div>
+  </div>
+
+  <p class="hint" id="rangeHint"></p>
+
+  <details class="adv">
+    <summary>Source des données &amp; options avancées</summary>
+    <div class="filter-row">
+      <div class="field">
+        <label for="selSrc">Accès à l'API energy-charts</label>
+        <select id="selSrc">
+          <option value="auto">Automatique (direct, puis relais local)</option>
+          <option value="direct">Direct — api.energy-charts.info</option>
+          <option value="local">Relais local — /api/… (serve.py)</option>
+          <option value="custom">Relais CORS personnalisé</option>
+        </select>
+      </div>
+      <div class="field hidden" id="fProxy" style="flex:1 1 320px">
+        <label for="inProxy">Préfixe du relais</label>
+        <input type="text" id="inProxy" placeholder="https://mon-relais.example/?url=" style="width:100%">
+      </div>
+      <div class="field">
+        <label for="selCache">Cache navigateur</label>
+        <select id="selCache">
+          <option value="on">Activé (localStorage)</option>
+          <option value="off">Désactivé</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="lbl">&nbsp;</span>
+        <button class="ghost" id="btnClearCache" type="button">Vider le cache</button>
+      </div>
+    </div>
+    <p class="hint">Si le navigateur bloque l'appel direct (CORS), lancez <code>python3 serve.py</code> dans le
+    dossier et ouvrez <code>http://localhost:8765</code> : le relais local supprime le problème.</p>
+  </details>
+</section>
+
+<div class="status" id="status" role="status" aria-live="polite">
+  <span class="ico">›</span>
+  <div style="flex:1">
+    <div id="statusMsg">Choisissez une période puis lancez le calcul.</div>
+    <div class="bar hidden" id="progBar"><i></i></div>
+  </div>
+</div>
+
+<main id="results" class="hidden">
+
+  <section class="card hero" aria-label="Résultat principal">
+    <div class="main">
+      <div class="eyebrow" id="heroEyebrow">Prix de marché de référence PV</div>
+      <div class="figure"><span id="heroVal">—</span><small id="heroUnit">Rp./kWh</small></div>
+      <div class="sub" id="heroSub"></div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Évolution journalière et convergence du trimestre</h2>
+        <p class="cap" id="cap1"></p>
+      </div>
+    </div>
+    <div class="legend" id="leg1"></div>
+    <div class="chartbox" id="box1"><div class="tip" id="tip1"></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Profil moyen de la journée</h2>
+        <p class="cap" id="cap2"></p>
+      </div>
+    </div>
+    <div class="legend" id="leg2"></div>
+    <div class="chartbox" id="box2"><div class="tip" id="tip2"></div></div>
+    <div class="legend" style="margin-top:20px" id="leg3"></div>
+    <div class="chartbox" id="box3"><div class="tip" id="tip3"></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Récapitulatif mensuel</h2>
+        <p class="cap" id="cap4"></p>
+      </div>
+      <button class="ghost" id="btnCsvM" type="button">Exporter CSV</button>
+    </div>
+    <div class="tablewrap"><table id="tblMonth"></table></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Détail journalier</h2>
+        <p class="cap">Vue tabulaire complète des séries tracées ci-dessus.</p>
+      </div>
+      <button class="ghost" id="btnCsvD" type="button">Exporter CSV</button>
+    </div>
+    <div class="tablewrap scroll-y"><table id="tblDay"></table></div>
+  </section>
+
+</main>
+
+<section class="card notes">
+  <h3>Comment le chiffre est calculé</h3>
+  <p>L'OFEN publie chaque trimestre le <em>prix de marché de référence</em> (art.&nbsp;15 OEneR) : la moyenne des prix
+  spot day-ahead du marché suisse, <strong>pondérée par l'injection réelle</strong> de la technologie concernée.
+  Cette page reproduit ce calcul en direct :</p>
+  <div class="formula">PMR&nbsp;=&nbsp;Σ&nbsp;(prix<sub>t</sub> × production<sub>t</sub> × Δt)&nbsp;&nbsp;÷&nbsp;&nbsp;Σ&nbsp;(production<sub>t</sub> × Δt)</div>
+  <ul>
+    <li><strong>Prix</strong> — enchère day-ahead de la zone CH, en EUR/MWh, au pas natif publié (15&nbsp;min ou 1&nbsp;h).
+      Un prix est appliqué en escalier sur toute la durée de son intervalle.</li>
+    <li><strong>Production</strong> — puissance PV injectée à l'échelle nationale, en MW, au pas natif (15&nbsp;min).</li>
+    <li><strong>Conversion CHF</strong> — taux de référence BCE du jour (report du dernier jour ouvré pour week-ends
+      et jours fériés), ou taux fixe au choix.</li>
+    <li><strong>Prix moyen de base</strong> — même période, moyenne simple pondérée par le temps uniquement. Le rapport
+      PMR / base est le <em>facteur de valeur</em> du solaire : en dessous de 100&nbsp;%, la cannibalisation de midi
+      pèse sur la rétribution.</li>
+    <li>Les prix négatifs sont intégrés tels quels, sans plancher.</li>
+  </ul>
+
+  <h3>Précision et limites</h3>
+  <ul>
+    <li>L'OFEN pondère par l'injection mesurée des <em>installations à courbe de charge</em> de la technologie ;
+      cette page utilise la production PV nationale agrégée d'energy-charts. Le profil est très proche, mais
+      l'assiette n'est pas identique — attendez-vous à un écart de quelques pourcents sur le résultat final.</li>
+    <li>Le taux de change retenu par l'OFEN peut différer du taux BCE journalier utilisé ici.</li>
+    <li>Les toutes dernières heures peuvent manquer ou être révisées ; le taux de couverture affiché indique la part
+      de la période réellement disponible.</li>
+    <li>Ce résultat est une <strong>anticipation</strong>. La valeur qui fait foi reste celle publiée par l'OFEN,
+      au plus tard 10 jours ouvrés après la fin du trimestre.</li>
+  </ul>
+
+  <h3>Sources</h3>
+  <ul>
+    <li>Prix spot &amp; production : <a href="https://www.energy-charts.info" target="_blank" rel="noopener">energy-charts.info</a>
+      (Fraunhofer ISE) — <code>api.energy-charts.info/price</code> et <code>/public_power</code>, CC BY 4.0.</li>
+    <li>Taux de change : <a href="https://frankfurter.dev" target="_blank" rel="noopener">frankfurter.dev</a> (taux de référence BCE).</li>
+    <li>Valeurs officielles : <a href="https://opendata.swiss/fr/dataset/referenz-marktpreise-gemass-art-15-enfv" target="_blank" rel="noopener">prix de marché de référence — OFEN, opendata.swiss</a>.</li>
+  </ul>
+</section>
+
+<footer>Estimation indicative — sans valeur contractuelle. Données sous licence CC BY 4.0 (Fraunhofer ISE / energy-charts.info).</footer>
+
+</div>
+<script>
+"use strict";
+/* =====================================================================
+   Prix de reprise PV — Suisse
+   Application autonome : aucun build, aucune dépendance externe.
+   ===================================================================== */
+
+const API = "https://api.energy-charts.info";
+const TZ  = "Europe/Zurich";
+const $   = (id) => document.getElementById(id);
+
+/* ------------------------------------------------------------------ time */
+
+/** Décalage (ms) de la zone `tz` à l'instant UTC `utcMs`. */
+function tzOffset(utcMs, tz) {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(utcMs));
+  const o = {};
+  for (const x of p) o[x.type] = x.value;
+  const h = o.hour === "24" ? 0 : +o.hour;
+  return Date.UTC(+o.year, +o.month - 1, +o.day, h, +o.minute, +o.second) - utcMs;
+}
+
+/** Instant UTC (secondes) d'une heure murale suisse. Deux passes pour l'heure d'été. */
+function zurichToUnix(y, m, d, h = 0, mi = 0) {
+  const guess = Date.UTC(y, m - 1, d, h, mi);
+  let ms = guess - tzOffset(guess, TZ);
+  ms = guess - tzOffset(ms, TZ);
+  return Math.round(ms / 1000);
+}
+
+/** Champs de date/heure suisses d'un timestamp unix (secondes). */
+function zurichParts(unixSec) {
+  const p = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  }).formatToParts(new Date(unixSec * 1000));
+  const o = {};
+  for (const x of p) o[x.type] = x.value;
+  const h = o.hour === "24" ? 0 : +o.hour;
+  return { date: `${o.year}-${o.month}-${o.day}`, month: `${o.year}-${o.month}`, hour: h, minute: +o.minute };
+}
+
+const isoToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+const addDaysIso = (iso, n) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return t.toISOString().slice(0, 10);
+};
+
+/* ----------------------------------------------------------- formatting */
+
+const nf = (v, d = 2) =>
+  v == null || !isFinite(v) ? "—"
+    : new Intl.NumberFormat("fr-CH", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+
+const frDate = (iso) => {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+};
+const frMonth = (ym) => {
+  const [y, m] = ym.split("-").map(Number);
+  const names = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  return `${names[m - 1]} ${y}`;
+};
+
+/* ------------------------------------------------------------ app state */
+
+const state = {
+  mode: "quarter",          // "quarter" | "custom"
+  year: null,
+  quarter: null,
+  from: null,               // ISO, inclus
+  to: null,                 // ISO, inclus
+  tech: "Solar",
+  currency: "chf-daily",    // "chf-daily" | "chf-fixed" | "eur"
+  fixedRate: 0.94,
+  source: "auto",           // "auto" | "direct" | "local" | "custom"
+  proxy: "",
+  cache: "on",
+  resolvedFetcher: null,    // stratégie réseau qui a fonctionné
+  last: null,               // dernier résultat calculé
+};
+
+/* -------------------------------------------------------------- storage */
+
+const PREF_KEY = "pvref.prefs.v1";
+const CACHE_PREFIX = "pvref.cache.v1:";
+
+function savePrefs() {
+  try {
+    localStorage.setItem(PREF_KEY, JSON.stringify({
+      tech: state.tech, currency: state.currency, fixedRate: state.fixedRate,
+      source: state.source, proxy: state.proxy, cache: state.cache,
+      theme: document.documentElement.getAttribute("data-theme") || "",
+    }));
+  } catch (_) { /* mode privé : on continue sans mémoriser */ }
+}
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch (_) { return {}; }
+}
+
+function cacheGet(key) {
+  if (state.cache !== "on") return null;
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || o.exp < Date.now()) { localStorage.removeItem(CACHE_PREFIX + key); return null; }
+    return o.v;
+  } catch (_) { return null; }
+}
+function cacheSet(key, value, ttlMs) {
+  if (state.cache !== "on") return;
+  const rec = JSON.stringify({ exp: Date.now() + ttlMs, v: value });
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, rec);
+  } catch (_) {
+    // Quota atteint : on purge les entrées du cache puis on réessaie une fois.
+    clearCache();
+    try { localStorage.setItem(CACHE_PREFIX + key, rec); } catch (_) { /* tant pis */ }
+  }
+}
+function clearCache() {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith(CACHE_PREFIX)) localStorage.removeItem(k);
+    }
+  } catch (_) { /* rien à purger */ }
+}
+
+/* ----------------------------------------------------------- networking */
+
+/** Les données passées sont figées ; le trimestre en cours est rafraîchi souvent. */
+function ttlFor(endIso) {
+  const daysOld = (Date.parse(isoToday()) - Date.parse(endIso)) / 864e5;
+  return daysOld > 20 ? 30 * 864e5 : 30 * 60e3;
+}
+
+/** Construit la liste des stratégies d'accès à essayer, dans l'ordre. */
+function fetchStrategies() {
+  const sameOrigin = location.protocol === "http:" || location.protocol === "https:";
+  const local = (path) => new URL("api" + path, location.href.replace(/[^/]*$/, "")).toString();
+  const direct = (path) => API + path;
+  const custom = (path) => state.proxy.includes("{url}")
+    ? state.proxy.replace("{url}", encodeURIComponent(API + path))
+    : state.proxy + (state.proxy.endsWith("=") ? encodeURIComponent(API + path) : API + path);
+
+  switch (state.source) {
+    case "direct": return [{ name: "direct", url: direct }];
+    case "local":  return [{ name: "local",  url: local }];
+    case "custom": return [{ name: "custom", url: custom }];
+    default: {
+      const list = [{ name: "direct", url: direct }];
+      if (sameOrigin) list.push({ name: "local", url: local });
+      if (state.proxy) list.push({ name: "custom", url: custom });
+      return list;
+    }
+  }
+}
+
+async function fetchJson(url, timeoutMs = 45000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: ac.signal, headers: { Accept: "application/json" } });
+    if (!r.ok) {
+      const e = new Error(`HTTP ${r.status} ${r.statusText} — ${url}`);
+      e.httpStatus = r.status;          // le serveur a répondu : ce n'est pas un problème de CORS
+      throw e;
+    }
+    return await r.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Appelle un chemin d'API en essayant les stratégies jusqu'à la première qui répond. */
+async function apiGet(path, cacheKey, ttl) {
+  const hit = cacheKey ? cacheGet(cacheKey) : null;
+  if (hit) return hit;
+
+  const strategies = state.resolvedFetcher
+    ? [state.resolvedFetcher, ...fetchStrategies().filter((s) => s.name !== state.resolvedFetcher.name)]
+    : fetchStrategies();
+
+  let lastErr = null, httpErr = null;
+  for (const s of strategies) {
+    try {
+      const data = await fetchJson(s.url(path));
+      state.resolvedFetcher = s;
+      if (cacheKey) cacheSet(cacheKey, data, ttl);
+      return data;
+    } catch (e) {
+      lastErr = e;
+      if (e.httpStatus) httpErr = e;
+    }
+  }
+  // Si l'API a répondu (même en erreur), le réseau fonctionne : on remonte son message tel quel.
+  if (httpErr) throw new Error("L'API a refusé la requête — " + httpErr.message);
+  throw new NetworkError(lastErr);
+}
+
+class NetworkError extends Error {
+  constructor(cause) {
+    super("Impossible de joindre l'API energy-charts.");
+    this.name = "NetworkError";
+    this.cause = cause;
+  }
+}
+
+/* ------------------------------------------------- energy-charts series */
+
+/** Découpe une période en tranches de ~35 jours (requêtes plus sûres et cache plus fin). */
+function chunkRange(fromIso, toIso, days = 35) {
+  const out = [];
+  let cur = fromIso;
+  while (cur <= toIso) {
+    let end = addDaysIso(cur, days - 1);
+    if (end > toIso) end = toIso;
+    out.push([cur, end]);
+    cur = addDaysIso(end, 1);
+  }
+  return out;
+}
+
+/** Fusionne des réponses /price en une série {t[], v[]} triée et dédoublonnée. */
+function mergePrice(responses) {
+  const map = new Map();
+  let unit = "EUR/MWh";
+  for (const r of responses) {
+    if (!r || !Array.isArray(r.unix_seconds)) continue;
+    if (r.unit) unit = r.unit;
+    const vals = r.price || r.Price || r.data;
+    if (!Array.isArray(vals)) continue;
+    for (let i = 0; i < r.unix_seconds.length; i++) {
+      const v = vals[i];
+      if (v == null || !isFinite(v)) continue;
+      map.set(r.unix_seconds[i], v);
+    }
+  }
+  const t = [...map.keys()].sort((a, b) => a - b);
+  return { t, v: t.map((k) => map.get(k)), unit };
+}
+
+/** Fusionne des réponses /public_power pour une technologie donnée. */
+function mergePower(responses, techName) {
+  const map = new Map();
+  for (const r of responses) {
+    if (!r || !Array.isArray(r.unix_seconds) || !Array.isArray(r.production_types)) continue;
+    const series = r.production_types.find((p) => p.name === techName);
+    if (!series || !Array.isArray(series.data)) continue;
+    for (let i = 0; i < r.unix_seconds.length; i++) {
+      const v = series.data[i];
+      if (v == null || !isFinite(v)) continue;
+      map.set(r.unix_seconds[i], v);
+    }
+  }
+  const t = [...map.keys()].sort((a, b) => a - b);
+  return { t, v: t.map((k) => map.get(k)) };
+}
+
+/** Noms de technologies disponibles, pour alimenter le sélecteur. */
+function techNames(responses) {
+  const names = new Set();
+  for (const r of responses) {
+    for (const p of (r && r.production_types) || []) {
+      if (p && p.name && Array.isArray(p.data) && p.data.some((x) => x != null)) names.add(p.name);
+    }
+  }
+  return [...names];
+}
+
+/* ----------------------------------------------------------- taux de change */
+
+/** Taux EUR→CHF par date (BCE), reportés sur les jours sans cotation. */
+async function fetchRates(fromIso, toIso) {
+  const key = `fx:${fromIso}:${toIso}`;
+  const hit = cacheGet(key);
+  if (hit) return new Map(Object.entries(hit));
+
+  // On remonte 10 jours avant le début pour toujours disposer d'un taux à reporter.
+  const padded = addDaysIso(fromIso, -10);
+  const hosts = [
+    `https://api.frankfurter.dev/v1/${padded}..${toIso}?base=EUR&symbols=CHF`,
+    `https://api.frankfurter.app/${padded}..${toIso}?base=EUR&symbols=CHF`,
+  ];
+  let raw = null, lastErr = null;
+  for (const h of hosts) {
+    try { raw = await fetchJson(h, 20000); break; } catch (e) { lastErr = e; }
+  }
+  if (!raw || !raw.rates) throw new Error("Taux de change indisponibles : " + (lastErr ? lastErr.message : "réponse vide"));
+
+  const quoted = Object.entries(raw.rates)
+    .map(([d, o]) => [d, o && o.CHF])
+    .filter(([, v]) => v != null && isFinite(v))
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  if (!quoted.length) throw new Error("Taux de change indisponibles pour cette période.");
+
+  // Report en avant sur chaque jour civil de la période.
+  const out = {};
+  let qi = 0, last = quoted[0][1];
+  for (let d = fromIso; d <= toIso; d = addDaysIso(d, 1)) {
+    while (qi < quoted.length && quoted[qi][0] <= d) last = quoted[qi++][1];
+    out[d] = last;
+  }
+  cacheSet(key, out, ttlFor(toIso));
+  return new Map(Object.entries(out));
+}
+
+/* =====================================================================
+   Cœur du calcul : moyenne des prix pondérée par la production
+   ===================================================================== */
+
+/** Pas médian d'une série de timestamps (secondes). */
+function medianStep(t) {
+  if (t.length < 2) return 3600;
+  const d = [];
+  for (let i = 1; i < t.length; i++) d.push(t[i] - t[i - 1]);
+  d.sort((a, b) => a - b);
+  return d[d.length >> 1] || 3600;
+}
+
+/**
+ * Série en escalier : chaque échantillon vaut sur [t[i], fin[i]).
+ * Une coupure plus longue que le pas nominal est un trou, pas une valeur étirée.
+ */
+function stepSeries(t, v) {
+  const step = medianStep(t);
+  const end = new Array(t.length);
+  for (let i = 0; i < t.length; i++) {
+    const nat = t[i] + step;
+    end[i] = i + 1 < t.length ? Math.min(t[i + 1], nat) : nat;
+  }
+  return {
+    t, v, end, step,
+    /** Valeur en vigueur à l'instant `x`, ou null si aucune. */
+    at(x) {
+      let lo = 0, hi = t.length - 1, k = -1;
+      while (lo <= hi) {
+        const m = (lo + hi) >> 1;
+        if (t[m] <= x) { k = m; lo = m + 1; } else hi = m - 1;
+      }
+      return k >= 0 && x < end[k] ? v[k] : null;
+    },
+  };
+}
+
+function makeBucket() {
+  return {
+    numEur: 0, numChf: 0, den: 0,        // pondéré par l'énergie (MWh)
+    tNumEur: 0, tNumChf: 0, tDen: 0,     // pondéré par le temps (s)
+    energy: 0, negEnergy: 0, seconds: 0, // MWh, MWh sous prix négatif, s couvertes
+    peakMw: 0,
+  };
+}
+function accumulate(b, priceEur, rate, mw, dt) {
+  const energy = mw * dt / 3600;         // MW × s → MWh
+  b.numEur += priceEur * energy;
+  b.numChf += priceEur * rate * energy;
+  b.den += energy;
+  b.tNumEur += priceEur * dt;
+  b.tNumChf += priceEur * rate * dt;
+  b.tDen += dt;
+  b.energy += energy;
+  b.seconds += dt;
+  if (priceEur < 0) b.negEnergy += energy;
+  if (mw > b.peakMw) b.peakMw = mw;
+}
+/** Prix pondéré production (`weighted`) et prix de base pondéré temps (`base`). */
+function summarize(b) {
+  const s = {
+    weightedEur: b.den > 0 ? b.numEur / b.den : null,
+    weightedChf: b.den > 0 ? b.numChf / b.den : null,
+    baseEur: b.tDen > 0 ? b.tNumEur / b.tDen : null,
+    baseChf: b.tDen > 0 ? b.tNumChf / b.tDen : null,
+    energyMwh: b.energy,
+    negShare: b.energy > 0 ? b.negEnergy / b.energy : 0,
+    seconds: b.seconds,
+    peakMw: b.peakMw,
+  };
+  s.captureRate = s.baseEur ? s.weightedEur / s.baseEur : null;
+  return s;
+}
+
+/**
+ * @param price {t,v} EUR/MWh · @param power {t,v} MW · @param rates Map<ISO, number>
+ * @param startTs/@param endTs fenêtre unix [début, fin[
+ */
+function computeReference(price, power, rates, startTs, endTs, fixedRate) {
+  const P = stepSeries(price.t, price.v);
+  const Q = stepSeries(power.t, power.v);
+
+  // Grille commune : bornes des deux séries + minuits suisses + limites de fenêtre.
+  const marks = new Set([startTs, endTs]);
+  const push = (x) => { if (x > startTs && x < endTs) marks.add(x); };
+  for (let i = 0; i < P.t.length; i++) { push(P.t[i]); push(P.end[i]); }
+  for (let i = 0; i < Q.t.length; i++) { push(Q.t[i]); push(Q.end[i]); }
+  for (let x = startTs; x < endTs; ) {
+    const p = zurichParts(x);
+    const [y, m, d] = p.date.split("-").map(Number);
+    const next = zurichToUnix(y, m, d + 1);
+    push(next);
+    x = next > x ? next : x + 86400;
+  }
+  const grid = [...marks].sort((a, b) => a - b);
+
+  const total = makeBucket();
+  const byDay = new Map();
+  const byMonth = new Map();
+  const byHour = Array.from({ length: 24 }, makeBucket);
+  const cumulative = [];          // convergence du prix pondéré, jour après jour
+  let gapSeconds = 0;
+
+  for (let i = 0; i + 1 < grid.length; i++) {
+    const a = grid[i], dt = grid[i + 1] - a;
+    if (dt <= 0) continue;
+
+    const pe = P.at(a);
+    const mw = Q.at(a);
+    if (pe == null || mw == null) { gapSeconds += dt; continue; }
+
+    const parts = zurichParts(a);
+    const rate = state.currency === "chf-fixed" ? fixedRate
+               : state.currency === "eur" ? 1
+               : (rates.get(parts.date) ?? fixedRate);
+
+    accumulate(total, pe, rate, mw, dt);
+    accumulate(byHour[parts.hour], pe, rate, mw, dt);
+
+    if (!byDay.has(parts.date)) byDay.set(parts.date, makeBucket());
+    accumulate(byDay.get(parts.date), pe, rate, mw, dt);
+
+    if (!byMonth.has(parts.month)) byMonth.set(parts.month, makeBucket());
+    accumulate(byMonth.get(parts.month), pe, rate, mw, dt);
+  }
+
+  // Moyenne pondérée courante à la fin de chaque journée.
+  let cn = 0, cd = 0, cnE = 0;
+  const days = [...byDay.keys()].sort();
+  for (const d of days) {
+    const b = byDay.get(d);
+    cn += b.numChf; cnE += b.numEur; cd += b.den;
+    cumulative.push({ date: d, chf: cd > 0 ? cn / cd : null, eur: cd > 0 ? cnE / cd : null });
+  }
+
+  const windowSeconds = endTs - startTs;
+  return {
+    total: summarize(total),
+    days: days.map((d) => ({ date: d, ...summarize(byDay.get(d)) })),
+    months: [...byMonth.keys()].sort().map((m) => ({ month: m, ...summarize(byMonth.get(m)) })),
+    hours: byHour.map((b, h) => ({ hour: h, ...summarize(b) })),
+    cumulative,
+    coverage: windowSeconds > 0 ? total.seconds / windowSeconds : 0,
+    gapSeconds,
+    windowSeconds,
+    priceStepMin: P.step / 60,
+    powerStepMin: Q.step / 60,
+    priceCount: price.t.length,
+    powerCount: power.t.length,
+  };
+}
+
+/* =====================================================================
+   Graphiques SVG (aucune librairie)
+   ===================================================================== */
+
+const SVGNS = "http://www.w3.org/2000/svg";
+const el = (name, attrs = {}) => {
+  const n = document.createElementNS(SVGNS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+};
+
+/** Graduations « rondes » couvrant [min, max]. */
+function niceTicks(min, max, target = 5) {
+  if (!isFinite(min) || !isFinite(max)) return { ticks: [0, 1], lo: 0, hi: 1 };
+  if (min === max) { min -= 1; max += 1; }
+  const raw = (max - min) / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const lo = Math.floor(min / step) * step;
+  const hi = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = lo; v <= hi + step / 2; v += step) ticks.push(Math.abs(v) < step / 1e6 ? 0 : v);
+  return { ticks, lo, hi };
+}
+
+/**
+ * Courbe(s) sur un axe unique, avec réticule et infobulle.
+ * `charts` conserve la config pour redessiner au redimensionnement.
+ */
+const charts = [];
+
+function lineChart(box, tip, cfg) {
+  const entry = { box, tip, cfg };
+  const i = charts.findIndex((c) => c.box === box);
+  if (i >= 0) charts[i] = entry; else charts.push(entry);
+  drawChart(entry);
+}
+
+function drawChart({ box, tip, cfg }) {
+  const { categories, series, yFormat, yTitle, tooltipTitle, height = 268 } = cfg;
+  box.querySelectorAll("svg").forEach((s) => s.remove());
+
+  const W = Math.max(box.clientWidth || 700, 520);
+  const H = height;
+  const pad = { t: 26, r: cfg.padRight ?? 16, b: 30, l: 52 };
+  const iw = W - pad.l - pad.r;
+  const ih = H - pad.t - pad.b;
+  const n = categories.length;
+  if (!n) return;
+
+  const all = series.flatMap((s) => s.values).filter((v) => v != null && isFinite(v));
+  const { ticks, lo, hi } = niceTicks(Math.min(...all, 0), Math.max(...all, 0));
+  const X = (k) => pad.l + (n === 1 ? iw / 2 : (k * iw) / (n - 1));
+  const Y = (v) => pad.t + ih - ((v - lo) / (hi - lo || 1)) * ih;
+
+  const svg = el("svg", { class: "chart", width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
+  svg.appendChild(el("title")).textContent = cfg.a11yTitle || yTitle;
+
+  // Grille horizontale + graduations Y (hairlines pleines, jamais pointillées).
+  for (const v of ticks) {
+    const y = Y(v);
+    svg.appendChild(el("line", { class: v === 0 && lo < 0 ? "zero" : "gridline", x1: pad.l, x2: W - pad.r, y1: y, y2: y }));
+    const tx = el("text", { class: "tick", x: pad.l - 8, y: y + 3.5, "text-anchor": "end" });
+    tx.textContent = yFormat(v, true);
+    svg.appendChild(tx);
+  }
+  const yt = el("text", { class: "axistitle", x: 0, y: 11, "text-anchor": "start" });
+  yt.textContent = yTitle;
+  svg.appendChild(yt);
+
+  // Graduations X, espacées pour ne jamais se chevaucher.
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(iw / 78))));
+  for (let k = 0; k < n; k += every) {
+    const tx = el("text", { class: "tick", x: X(k), y: H - 10, "text-anchor": "middle" });
+    tx.textContent = categories[k];
+    svg.appendChild(tx);
+  }
+  svg.appendChild(el("line", { class: "axisline", x1: pad.l, x2: W - pad.r, y1: pad.t + ih, y2: pad.t + ih }));
+
+  // Tracés : segments interrompus aux valeurs manquantes.
+  for (const s of series) {
+    const runs = [];
+    let cur = [];
+    s.values.forEach((v, k) => {
+      if (v == null || !isFinite(v)) { if (cur.length) runs.push(cur); cur = []; }
+      else cur.push([X(k), Y(v)]);
+    });
+    if (cur.length) runs.push(cur);
+
+    for (const r of runs) {
+      if (s.area) {
+        const base = Y(Math.max(lo, 0));
+        const d = `M${r[0][0]},${base}` + r.map((p) => `L${p[0]},${p[1]}`).join("") + `L${r[r.length - 1][0]},${base}Z`;
+        svg.appendChild(el("path", { d, fill: s.color, "fill-opacity": ".13", stroke: "none" }));
+      }
+      if (r.length === 1) {
+        svg.appendChild(el("circle", { cx: r[0][0], cy: r[0][1], r: 3, fill: s.color }));
+      } else {
+        svg.appendChild(el("path", {
+          d: `M${r.map((p) => `${p[0]},${p[1]}`).join("L")}`,
+          fill: "none", stroke: s.color, "stroke-width": 2,
+          "stroke-linejoin": "round", "stroke-linecap": "round",
+          "stroke-dasharray": s.dash || "none",
+        }));
+      }
+    }
+
+    // Étiquette directe au dernier point : la valeur reste lisible sans survol.
+    if (s.directLabel) {
+      let k = s.values.length - 1;
+      while (k >= 0 && (s.values[k] == null || !isFinite(s.values[k]))) k--;
+      if (k >= 0) {
+        const t = el("text", { class: "lbl", x: Math.min(X(k) + 7, W - pad.r + 4), y: Y(s.values[k]) + 4 });
+        t.textContent = yFormat(s.values[k]);
+        svg.appendChild(t);
+      }
+    }
+  }
+
+  // Couche de survol : réticule + marqueurs cerclés de la surface (anneau 2px).
+  const cross = el("line", { class: "axisline", y1: pad.t, y2: pad.t + ih, opacity: 0 });
+  svg.appendChild(cross);
+  const dots = series.map((s) => {
+    const g = el("circle", { r: 4.5, fill: s.color, stroke: "var(--surface-1)", "stroke-width": 2, opacity: 0 });
+    svg.appendChild(g);
+    return g;
+  });
+
+  const hit = el("rect", { x: pad.l - iw / (2 * Math.max(n - 1, 1)), y: pad.t, width: iw + iw / Math.max(n - 1, 1), height: ih, fill: "transparent", style: "cursor:crosshair" });
+  svg.appendChild(hit);
+
+  let active = -1;
+  const show = (k, clientX) => {
+    if (k < 0 || k >= n) return hide();
+    active = k;
+    cross.setAttribute("x1", X(k));
+    cross.setAttribute("x2", X(k));
+    cross.setAttribute("opacity", ".55");
+    series.forEach((s, si) => {
+      const v = s.values[k];
+      if (v == null || !isFinite(v)) { dots[si].setAttribute("opacity", 0); return; }
+      dots[si].setAttribute("cx", X(k));
+      dots[si].setAttribute("cy", Y(v));
+      dots[si].setAttribute("opacity", 1);
+    });
+    const rows = series
+      .filter((s) => s.values[k] != null && isFinite(s.values[k]))
+      .map((s) => `<div class="r"><span><i style="background:${s.color}"></i>${s.label}</span><b>${yFormat(s.values[k])}</b></div>`)
+      .join("");
+    tip.innerHTML = `<div class="t">${tooltipTitle(k)}</div>${rows}${cfg.tooltipExtra ? cfg.tooltipExtra(k) : ""}`;
+    tip.style.opacity = 1;
+    const bw = box.clientWidth;
+    const tw = tip.offsetWidth;
+    let left = X(k) + 14;
+    if (left + tw > bw - 4) left = X(k) - tw - 14;
+    tip.style.left = Math.max(4, left) + "px";
+    tip.style.top = Math.max(4, pad.t + 4) + "px";
+  };
+  const hide = () => {
+    active = -1;
+    cross.setAttribute("opacity", 0);
+    dots.forEach((d) => d.setAttribute("opacity", 0));
+    tip.style.opacity = 0;
+  };
+  const indexAt = (evt) => {
+    const r = svg.getBoundingClientRect();
+    const x = ((evt.clientX - r.left) / r.width) * W;
+    return Math.max(0, Math.min(n - 1, Math.round(((x - pad.l) / (iw || 1)) * (n - 1))));
+  };
+  hit.addEventListener("pointermove", (e) => show(indexAt(e)));
+  hit.addEventListener("pointerdown", (e) => show(indexAt(e)));
+  hit.addEventListener("pointerleave", hide);
+
+  // Équivalent clavier du survol.
+  box.tabIndex = 0;
+  box.setAttribute("role", "application");
+  box.setAttribute("aria-label", (cfg.a11yTitle || yTitle) + " — flèches gauche/droite pour parcourir les valeurs");
+  box.onkeydown = (e) => {
+    if (e.key === "ArrowRight") { show(active < 0 ? 0 : Math.min(n - 1, active + 1)); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { show(active < 0 ? n - 1 : Math.max(0, active - 1)); e.preventDefault(); }
+    else if (e.key === "Escape") hide();
+  };
+  box.onblur = hide;
+
+  box.appendChild(svg);
+}
+
+let resizeTimer = null;
+addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => charts.forEach(drawChart), 150);
+});
+
+function legend(node, items) {
+  node.innerHTML = items.map((s) => {
+    // La pastille reprend le tireté de la courbe : l'identité ne tient jamais à la couleur seule.
+    const swatch = s.dash
+      ? `background:repeating-linear-gradient(90deg, ${s.color} 0 4px, transparent 4px 7px)`
+      : `background:${s.color}`;
+    return `<span><i style="${swatch}"></i>${s.label}</span>`;
+  }).join("");
+}
+
+/* =====================================================================
+   Interface
+   ===================================================================== */
+
+const CENT = (perMwh) => (perMwh == null ? null : perMwh / 10);   // X/MWh → centimes/kWh
+const curCode = () => (state.currency === "eur" ? "EUR" : "CHF");
+const centUnit = () => (state.currency === "eur" ? "ct€/kWh" : "Rp./kWh");
+const pickVal = (o, k) => (state.currency === "eur" ? o[k + "Eur"] : o[k + "Chf"]);
+
+function setStatus(msg, kind = "", progress = null) {
+  const box = $("status");
+  box.className = "status" + (kind ? " " + kind : "");
+  box.querySelector(".ico").textContent = kind === "err" ? "!" : kind === "ok" ? "✓" : kind === "warn" ? "!" : "›";
+  $("statusMsg").innerHTML = msg;
+  const bar = $("progBar");
+  if (progress == null) bar.classList.add("hidden");
+  else { bar.classList.remove("hidden"); bar.firstElementChild.style.width = Math.round(progress * 100) + "%"; }
+}
+
+/** Bornes ISO [du, au] de la sélection courante, ou une erreur explicite. */
+function resolveRange() {
+  const today = isoToday();
+  if (state.mode === "custom") {
+    if (!state.from || !state.to) throw new Error("Renseignez les deux dates.");
+    if (state.from > state.to) throw new Error("La date de début est postérieure à la date de fin.");
+    return { from: state.from, to: state.to > today ? today : state.to, clamped: state.to > today };
+  }
+  const q = state.quarter, y = state.year;
+  const from = `${y}-${String((q - 1) * 3 + 1).padStart(2, "0")}-01`;
+  const endMonth = q * 3;
+  const lastDay = new Date(Date.UTC(y, endMonth, 0)).getUTCDate();
+  const to = `${y}-${String(endMonth).padStart(2, "0")}-${lastDay}`;
+  if (from > today) throw new Error(`Le trimestre Q${q} ${y} n'a pas encore commencé.`);
+  return { from, to: to > today ? today : to, clamped: to > today };
+}
+
+function updateHint() {
+  try {
+    const { from, to, clamped } = resolveRange();
+    const days = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1;
+    $("rangeHint").textContent =
+      `Période analysée : ${frDate(from)} → ${frDate(to)} (${days} jour${days > 1 ? "s" : ""})`
+      + (clamped ? " — trimestre en cours, arrêté au jour d'aujourd'hui." : "");
+  } catch (e) {
+    $("rangeHint").textContent = e.message;
+  }
+}
+
+/* ------------------------------------------------------ pipeline complet */
+
+let running = false;
+
+async function run() {
+  if (running) return;
+  const range = resolveRange();
+  running = true;
+  $("btnRun").disabled = true;
+
+  try {
+    const fetchFrom = range.from;
+    const fetchTo = addDaysIso(range.to, 1);           // marge : couvre bien la dernière journée
+    const chunks = chunkRange(fetchFrom, fetchTo);
+    const needFx = state.currency === "chf-daily";
+    const steps = chunks.length * 2 + (needFx ? 1 : 0);
+    let done = 0;
+    const tick = (label) => setStatus(label, "", ++done / steps);
+
+    setStatus("Récupération de la production nationale…", "", 0);
+    const powerRaw = [];
+    for (const [a, b] of chunks) {
+      const path = `/public_power?country=ch&start=${a}&end=${b}`;
+      powerRaw.push(await apiGet(path, `pp:${a}:${b}`, ttlFor(b)));
+      tick(`Production ${frDate(a)} → ${frDate(b)}…`);
+    }
+
+    // Le sélecteur de technologie reflète ce que l'API expose réellement.
+    syncTechOptions(techNames(powerRaw));
+
+    setStatus("Récupération des prix spot day-ahead…", "", done / steps);
+    const priceRaw = [];
+    for (const [a, b] of chunks) {
+      const path = `/price?bzn=CH&start=${a}&end=${b}`;
+      priceRaw.push(await apiGet(path, `pr:${a}:${b}`, ttlFor(b)));
+      tick(`Prix ${frDate(a)} → ${frDate(b)}…`);
+    }
+
+    let rates = new Map();
+    let fxNote = "";
+    if (needFx) {
+      try {
+        rates = await fetchRates(range.from, range.to);
+        tick("Taux de change…");
+      } catch (e) {
+        fxNote = ` Taux BCE indisponibles (${e.message}) — repli sur le taux fixe ${nf(state.fixedRate, 3)}.`;
+        done++;
+      }
+    }
+
+    const price = mergePrice(priceRaw);
+    const power = mergePower(powerRaw, state.tech);
+    if (!price.t.length) throw new Error("Aucun prix spot renvoyé pour cette période.");
+    if (!power.t.length) throw new Error(`Aucune production « ${state.tech} » renvoyée pour cette période.`);
+
+    const [fy, fm, fd] = range.from.split("-").map(Number);
+    const [ty, tm, td] = range.to.split("-").map(Number);
+    const startTs = zurichToUnix(fy, fm, fd);
+    const endTs = zurichToUnix(ty, tm, td + 1);
+
+    const res = computeReference(price, power, rates, startTs, endTs, state.fixedRate);
+    res.range = range;
+    res.fxNote = fxNote;
+    res.usedFx = needFx && !fxNote;
+    state.last = res;
+
+    render(res);
+
+    const cov = res.coverage;
+    const kind = cov > 0.98 ? "ok" : cov > 0.85 ? "warn" : "err";
+    const via = state.resolvedFetcher ? state.resolvedFetcher.name : "?";
+    setStatus(
+      `Calcul terminé — ${frDate(range.from)} → ${frDate(range.to)}, couverture ${nf(cov * 100, 1)} % `
+      + `(prix au pas de ${nf(res.priceStepMin, 0)} min, production au pas de ${nf(res.powerStepMin, 0)} min, accès « ${via} »).`
+      + (cov <= 0.98 ? " Des heures manquent : le résultat reste une estimation partielle." : "")
+      + fxNote, kind);
+
+  } catch (e) {
+    console.error(e);
+    if (e instanceof NetworkError) {
+      setStatus(
+        "<strong>Impossible de joindre l'API energy-charts.</strong> "
+        + "Le plus souvent, c'est le navigateur qui bloque l'appel direct depuis un fichier local (CORS). "
+        + "Lancez <code>python3 serve.py</code> dans ce dossier puis ouvrez <code>http://localhost:8765</code> — "
+        + "le relais local règle le problème. Détail : <code>"
+        + String((e.cause && e.cause.message) || e.cause || "réseau").replace(/[<>&]/g, "") + "</code>", "err");
+    } else {
+      setStatus("<strong>Erreur :</strong> " + String(e.message).replace(/[<>&]/g, ""), "err");
+    }
+  } finally {
+    running = false;
+    $("btnRun").disabled = false;
+  }
+}
+
+function syncTechOptions(names) {
+  if (!names.length) return;
+  const sel = $("selTech");
+  const preferred = ["Solar", "Wind onshore", "Wind offshore", "Hydro Run-of-River", "Hydro water reservoir", "Biomass", "Waste"];
+  const ordered = [...preferred.filter((p) => names.includes(p)), ...names.filter((n) => !preferred.includes(n)).sort()];
+  if (ordered.join("|") === [...sel.options].map((o) => o.value).join("|")) return;
+  const label = {
+    "Solar":                 ["Solaire (PV)", "solaire"],
+    "Wind onshore":          ["Éolien terrestre", "éolien"],
+    "Wind offshore":         ["Éolien en mer", "éolien en mer"],
+    "Hydro Run-of-River":    ["Hydraulique au fil de l'eau", "fil de l'eau"],
+    "Hydro water reservoir": ["Hydraulique à accumulation", "accumulation"],
+    "Hydro pumped storage":  ["Pompage-turbinage", "pompage-turbinage"],
+    "Biomass":               ["Biomasse", "biomasse"],
+    "Waste":                 ["Déchets", "déchets"],
+    "Nuclear":               ["Nucléaire", "nucléaire"],
+    "Fossil gas":            ["Gaz fossile", "gaz"],
+  };
+  sel.innerHTML = ordered.map((n) => {
+    const [long, short] = label[n] || [n, n];
+    return `<option value="${n}" data-short="${short}">${long}</option>`;
+  }).join("");
+  sel.value = ordered.includes(state.tech) ? state.tech : ordered[0];
+  state.tech = sel.value;
+}
+
+/* --------------------------------------------------------------- rendu */
+
+const C1 = "var(--series-1)", C2 = "var(--series-2)", C3 = "var(--series-3)";
+
+function render(res) {
+  $("results").classList.remove("hidden");
+  const t = res.total;
+  const unit = centUnit(), cur = curCode();
+  const opt = $("selTech").selectedOptions[0];
+  const techLabel = (opt && opt.textContent) || state.tech;
+  const techShort = ((opt && opt.dataset.short) || techLabel).toLowerCase();
+
+  /* --- chiffre principal + tuiles ------------------------------------ */
+  $("heroEyebrow").textContent = `Prix de marché de référence — ${techLabel}`;
+  $("heroVal").textContent = nf(CENT(pickVal(t, "weighted")), 2);
+  $("heroUnit").textContent = unit;
+  $("heroSub").innerHTML =
+    `${frDate(res.range.from)} → ${frDate(res.range.to)}`
+    + (res.range.clamped ? " · trimestre en cours" : "")
+    + ` · ${nf(pickVal(t, "weighted"), 2)} ${cur}/MWh`;
+
+  const tiles = [
+    { k: "Prix moyen de base", v: nf(CENT(pickVal(t, "base")), 2), u: unit,
+      n: "moyenne simple sur la période" },
+    { k: "Facteur de valeur", v: t.captureRate == null ? "—" : nf(t.captureRate * 100, 1), u: "%",
+      n: "pondéré ÷ base" },
+    { k: "Énergie pondérante", v: nf(t.energyMwh / 1000, 1), u: "GWh",
+      n: `production ${techShort} nationale` },
+    { k: "Énergie à prix négatif", v: nf(t.negShare * 100, 1), u: "%",
+      n: "part de la production concernée" },
+    { k: "Couverture des données", v: nf(res.coverage * 100, 1), u: "%",
+      n: `${nf(res.gapSeconds / 3600, 0)} h sans donnée` },
+    { k: "Conversion", v: state.currency === "eur" ? "aucune" : res.usedFx ? "BCE / jour" : nf(state.fixedRate, 3),
+      u: "", n: state.currency === "eur" ? "prix bruts en EUR" : "EUR → CHF" },
+  ];
+  $("tiles").innerHTML = tiles.map((x) =>
+    `<div class="tile"><div class="k">${x.k}</div><div class="v">${x.v}${x.u ? `<span class="u">${x.u}</span>` : ""}</div><div class="n">${x.n}</div></div>`
+  ).join("");
+
+  /* --- 1. évolution journalière + convergence ------------------------- */
+  const days = res.days;
+  const cumMap = new Map(res.cumulative.map((c) => [c.date, state.currency === "eur" ? c.eur : c.chf]));
+  const cats = days.map((d) => frDate(d.date).slice(0, 5));
+  const sDaily = { label: `Prix pondéré ${techShort} (jour)`, color: C1, values: days.map((d) => CENT(pickVal(d, "weighted"))) };
+  const sBase  = { label: "Prix moyen de base (jour)", color: C2, values: days.map((d) => CENT(pickVal(d, "base"))) };
+  const sCum   = { label: "Prix de référence cumulé", color: C1, dash: "5 4", directLabel: true,
+                   values: days.map((d) => CENT(cumMap.get(d.date))) };
+
+  $("cap1").textContent =
+    `Chaque jour de la période, en ${unit}. La courbe cumulée est la moyenne pondérée depuis le début de la période : `
+    + `c'est elle qui converge vers le prix trimestriel définitif.`;
+  legend($("leg1"), [sDaily, sBase, sCum]);
+  lineChart($("box1"), $("tip1"), {
+    categories: cats, series: [sDaily, sBase, sCum],
+    yFormat: (v) => nf(v, 2), yTitle: unit, height: 300, padRight: 58,
+    a11yTitle: "Évolution journalière du prix pondéré et du prix de base",
+    tooltipTitle: (k) => frDate(days[k].date),
+    tooltipExtra: (k) => `<div class="r" style="color:var(--text-muted)"><span>Production</span><b>${nf(days[k].energyMwh / 1000, 2)} GWh</b></div>`,
+  });
+
+  /* --- 2 & 3. profil moyen de la journée ------------------------------ */
+  const hours = res.hours;
+  const hCats = hours.map((h) => String(h.hour).padStart(2, "0") + "h");
+  const sHPrice = { label: "Prix spot moyen", color: C2, values: hours.map((h) => CENT(pickVal(h, "base"))) };
+  const sHPow = {
+    label: `Production ${techShort} moyenne`, color: C3, area: true,
+    values: hours.map((h) => (h.seconds > 0 ? (h.energyMwh * 3600) / h.seconds : null)),
+  };
+
+  $("cap2").textContent =
+    `Moyenne heure par heure sur toute la période (heure suisse). L'écart entre le prix de référence et le prix de base `
+    + `vient de la superposition de ces deux courbes : le solaire produit surtout aux heures où il fait lui-même baisser le prix.`;
+  legend($("leg2"), [sHPrice]);
+  lineChart($("box2"), $("tip2"), {
+    categories: hCats, series: [sHPrice],
+    yFormat: (v) => nf(v, 2), yTitle: unit, height: 210,
+    a11yTitle: "Profil horaire moyen du prix spot",
+    tooltipTitle: (k) => `${hCats[k]} — prix moyen`,
+  });
+  legend($("leg3"), [sHPow]);
+  lineChart($("box3"), $("tip3"), {
+    categories: hCats, series: [sHPow],
+    yFormat: (v) => nf(v, 0), yTitle: "MW", height: 210,
+    a11yTitle: "Profil horaire moyen de la production",
+    tooltipTitle: (k) => `${hCats[k]} — production moyenne`,
+  });
+
+  /* --- 4. tableaux ---------------------------------------------------- */
+  const num = (v, d = 2) => {
+    const s = nf(v, d);
+    return `<td class="${v != null && v < 0 ? "neg" : ""}">${s}</td>`;
+  };
+  const head = (cols) => `<thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
+
+  $("cap4").textContent = `Prix pondéré et prix de base par mois, en ${unit}.`;
+  $("tblMonth").innerHTML =
+    head(["Mois", `Prix pondéré (${unit})`, `Prix de base (${unit})`, "Facteur de valeur", "Production (GWh)", "Couverture"])
+    + "<tbody>" + res.months.map((m) => {
+      const expected = expectedSecondsForMonth(m.month, res.range);
+      return `<tr><td>${frMonth(m.month)}</td>${num(CENT(pickVal(m, "weighted")))}${num(CENT(pickVal(m, "base")))}`
+        + `<td>${m.captureRate == null ? "—" : nf(m.captureRate * 100, 1) + " %"}</td>`
+        + `<td>${nf(m.energyMwh / 1000, 2)}</td>`
+        + `<td>${expected ? nf((m.seconds / expected) * 100, 1) + " %" : "—"}</td></tr>`;
+    }).join("") + "</tbody>"
+    + `<tfoot><tr><td>Total période</td>${num(CENT(pickVal(res.total, "weighted")))}${num(CENT(pickVal(res.total, "base")))}`
+    + `<td>${res.total.captureRate == null ? "—" : nf(res.total.captureRate * 100, 1) + " %"}</td>`
+    + `<td>${nf(res.total.energyMwh / 1000, 2)}</td><td>${nf(res.coverage * 100, 1)} %</td></tr></tfoot>`;
+
+  $("tblDay").innerHTML =
+    head(["Jour", `Prix pondéré (${unit})`, `Prix de base (${unit})`, `Cumulé (${unit})`, "Production (GWh)", "Pointe (MW)"])
+    + "<tbody>" + days.map((d) =>
+      `<tr><td>${frDate(d.date)}</td>${num(CENT(pickVal(d, "weighted")))}${num(CENT(pickVal(d, "base")))}`
+      + `${num(CENT(cumMap.get(d.date)))}<td>${nf(d.energyMwh / 1000, 3)}</td><td>${nf(d.peakMw, 0)}</td></tr>`
+    ).join("") + "</tbody>";
+}
+
+/** Durée théorique (s) de la part du mois `ym` incluse dans la période. */
+function expectedSecondsForMonth(ym, range) {
+  const [y, m] = ym.split("-").map(Number);
+  const first = `${ym}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const last = `${ym}-${String(lastDay).padStart(2, "0")}`;
+  const a = first > range.from ? first : range.from;
+  const b = last < range.to ? last : range.to;
+  if (a > b) return 0;
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  return zurichToUnix(by, bm, bd + 1) - zurichToUnix(ay, am, ad);
+}
+
+/* ------------------------------------------------------------ export CSV */
+
+function downloadCsv(name, rows) {
+  const body = rows.map((r) => r.map((c) => {
+    const s = c == null ? "" : String(c);
+    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(";")).join("\r\n");
+  const blob = new Blob(["﻿" + body], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function csvHeaderRows(res) {
+  return [
+    ["Prix de marche de reference - estimation"],
+    ["Technologie", state.tech],
+    ["Periode", res.range.from, res.range.to],
+    ["Monnaie", curCode()],
+    ["Couverture", nf(res.coverage * 100, 2) + " %"],
+    ["Source", "energy-charts.info (Fraunhofer ISE), CC BY 4.0"],
+    [],
+  ];
+}
+
+/* ------------------------------------------------------------ démarrage */
+
+function bind() {
+  const p = loadPrefs();
+  if (p.theme) document.documentElement.setAttribute("data-theme", p.theme);
+  state.tech = p.tech || "Solar";
+  state.currency = p.currency || "chf-daily";
+  state.fixedRate = p.fixedRate || 0.94;
+  state.source = p.source || "auto";
+  state.proxy = p.proxy || "";
+  state.cache = p.cache || "on";
+
+  // Année et trimestre courants par défaut.
+  const today = isoToday();
+  const yNow = +today.slice(0, 4);
+  const qNow = Math.floor((+today.slice(5, 7) - 1) / 3) + 1;
+  $("selYear").innerHTML = Array.from({ length: yNow - 2014 }, (_, i) => yNow - i)
+    .map((y) => `<option value="${y}">${y}</option>`).join("");
+  state.year = yNow;
+  state.quarter = qNow;
+  $("selYear").value = String(yNow);
+  $("fQuarter").querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String(+b.dataset.q === qNow)));
+
+  const qStart = `${yNow}-${String((qNow - 1) * 3 + 1).padStart(2, "0")}-01`;
+  $("dFrom").value = qStart;
+  $("dTo").value = today;
+  $("dFrom").max = today;
+  $("dTo").max = today;
+
+  $("selTech").value = state.tech;
+  $("selCur").value = state.currency;
+  $("inRate").value = state.fixedRate;
+  $("selSrc").value = state.source;
+  $("inProxy").value = state.proxy;
+  $("selCache").value = state.cache;
+  $("fRate").classList.toggle("hidden", state.currency !== "chf-fixed");
+  $("fProxy").classList.toggle("hidden", state.source !== "custom");
+
+  const setMode = (m) => {
+    state.mode = m;
+    $("modeQuarter").setAttribute("aria-pressed", String(m === "quarter"));
+    $("modeCustom").setAttribute("aria-pressed", String(m === "custom"));
+    for (const id of ["fYear", "fQuarter"]) $(id).classList.toggle("hidden", m !== "quarter");
+    for (const id of ["fFrom", "fTo"]) $(id).classList.toggle("hidden", m !== "custom");
+    updateHint();
+  };
+  $("modeQuarter").onclick = () => setMode("quarter");
+  $("modeCustom").onclick = () => setMode("custom");
+
+  $("selYear").onchange = (e) => { state.year = +e.target.value; updateHint(); };
+  $("fQuarter").onclick = (e) => {
+    const b = e.target.closest("button[data-q]");
+    if (!b) return;
+    state.quarter = +b.dataset.q;
+    $("fQuarter").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    updateHint();
+  };
+  $("dFrom").onchange = (e) => { state.from = e.target.value; updateHint(); };
+  $("dTo").onchange = (e) => { state.to = e.target.value; updateHint(); };
+  state.from = $("dFrom").value;
+  state.to = $("dTo").value;
+
+  $("selTech").onchange = (e) => { state.tech = e.target.value; savePrefs(); };
+  $("selCur").onchange = (e) => {
+    state.currency = e.target.value;
+    $("fRate").classList.toggle("hidden", state.currency !== "chf-fixed");
+    savePrefs();
+  };
+  $("inRate").onchange = (e) => { state.fixedRate = +e.target.value || 0.94; savePrefs(); };
+  $("selSrc").onchange = (e) => {
+    state.source = e.target.value;
+    state.resolvedFetcher = null;
+    $("fProxy").classList.toggle("hidden", state.source !== "custom");
+    savePrefs();
+  };
+  $("inProxy").onchange = (e) => { state.proxy = e.target.value.trim(); state.resolvedFetcher = null; savePrefs(); };
+  $("selCache").onchange = (e) => { state.cache = e.target.value; savePrefs(); };
+  $("btnClearCache").onclick = () => { clearCache(); setStatus("Cache vidé.", "ok"); };
+
+  $("btnRun").onclick = run;
+
+  $("themeBtn").onclick = () => {
+    const cur = document.documentElement.getAttribute("data-theme") || "";
+    const next = cur === "" ? "light" : cur === "light" ? "dark" : "";
+    if (next) document.documentElement.setAttribute("data-theme", next);
+    else document.documentElement.removeAttribute("data-theme");
+    $("themeBtn").textContent = next === "light" ? "Thème clair" : next === "dark" ? "Thème sombre" : "Thème auto";
+    savePrefs();
+    charts.forEach(drawChart);
+  };
+  $("themeBtn").textContent =
+    p.theme === "light" ? "Thème clair" : p.theme === "dark" ? "Thème sombre" : "Thème auto";
+
+  $("btnCsvM").onclick = () => {
+    const r = state.last; if (!r) return;
+    downloadCsv(`prix-reference-mensuel-${r.range.from}_${r.range.to}.csv`, [
+      ...csvHeaderRows(r),
+      ["Mois", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, "Facteur de valeur", "Production (MWh)"],
+      ...r.months.map((m) => [m.month, nf(pickVal(m, "weighted"), 4), nf(pickVal(m, "base"), 4),
+                              m.captureRate == null ? "" : nf(m.captureRate, 4), nf(m.energyMwh, 1)]),
+      ["TOTAL", nf(pickVal(r.total, "weighted"), 4), nf(pickVal(r.total, "base"), 4),
+       r.total.captureRate == null ? "" : nf(r.total.captureRate, 4), nf(r.total.energyMwh, 1)],
+    ]);
+  };
+  $("btnCsvD").onclick = () => {
+    const r = state.last; if (!r) return;
+    const cum = new Map(r.cumulative.map((c) => [c.date, state.currency === "eur" ? c.eur : c.chf]));
+    downloadCsv(`prix-reference-journalier-${r.range.from}_${r.range.to}.csv`, [
+      ...csvHeaderRows(r),
+      ["Jour", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, `Cumule (${curCode()}/MWh)`, "Production (MWh)", "Pointe (MW)"],
+      ...r.days.map((d) => [d.date, nf(pickVal(d, "weighted"), 4), nf(pickVal(d, "base"), 4),
+                            nf(cum.get(d.date), 4), nf(d.energyMwh, 1), nf(d.peakMw, 1)]),
+    ]);
+  };
+
+  setMode("quarter");
+  updateHint();
+}
+
+bind();
+run();
+</script>
+</body>
+</html>
