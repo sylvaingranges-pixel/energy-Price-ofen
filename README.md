@@ -131,8 +131,16 @@ GET https://api.energy-charts.info/price?bzn=CH&start=YYYY-MM-DD&end=YYYY-MM-DD
 GET https://api.energy-charts.info/public_power?country=ch&start=YYYY-MM-DD&end=YYYY-MM-DD
 ```
 
-Le cache est court pour la période en cours (30 min) et long pour les périodes closes (30 jours) ; il se
-vide depuis le panneau « Source des données & options avancées ».
+Les tranches sont **alignées sur les trimestres civils** : un trimestre se récupère en une requête par
+série, et les bornes fixes rendent le cache réutilisable d'une sélection à l'autre. Le cache est court pour
+la période en cours (30 min) et long pour les périodes closes (30 jours) ; il se vide depuis le panneau
+« Source des données & options avancées ».
+
+**Limite de débit.** L'API refuse les rafales avec un `HTTP 429`. L'application espace ses appels d'environ
+400 ms et retente jusqu'à trois fois en reculant progressivement, en respectant l'en-tête `Retry-After`
+quand le serveur en fournit un. Pendant l'attente, le bandeau l'indique au lieu d'échouer. Si le refus
+persiste, patientez une minute et relancez : les tranches déjà obtenues restent en cache et ne sont pas
+redemandées.
 
 ## Données
 

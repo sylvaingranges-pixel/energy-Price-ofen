@@ -606,7 +606,39 @@ function fetchStrategies() {
   return list.filter((x) => !state.deadStrategies.has(x.name));
 }
 
-async function fetchJson(url, timeoutMs = 45000) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** L'API limite le débit : on espace les appels au lieu de les envoyer en rafale. */
+const pacer = { last: 0, minGapMs: 400 };
+async function pace() {
+  const wait = pacer.last + pacer.minGapMs - Date.now();
+  if (wait > 0) await sleep(wait);
+  pacer.last = Date.now();
+}
+
+/** Codes qui valent la peine d'être retentés : surcharge passagère, pas erreur de requête. */
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
+/** `Retry-After` en secondes, que le serveur l'exprime en délai ou en date. */
+function parseRetryAfter(raw) {
+  if (!raw) return null;
+  const secs = Number(raw);
+  if (isFinite(secs)) return Math.max(0, secs);
+  const when = Date.parse(raw);
+  return isFinite(when) ? Math.max(0, (when - Date.now()) / 1000) : null;
+}
+
+/** Attente avant la tentative suivante : ce que demande le serveur, sinon un recul exponentiel. */
+function retryDelay(attempt, retryAfterSec) {
+  if (retryAfterSec != null) return Math.min(retryAfterSec * 1000 + 250, 30000);
+  const base = Math.min(1200 * Math.pow(2.4, attempt), 15000);
+  return Math.round(base * (0.75 + Math.random() * 0.5));   // gigue : évite les rafales synchronisées
+}
+
+/** Signalé pendant l'attente d'une nouvelle tentative, pour que l'interface le dise. */
+let onNetworkWait = null;
+
+async function fetchOnce(url, timeoutMs) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
@@ -615,6 +647,8 @@ async function fetchJson(url, timeoutMs = 45000) {
     if (!r.ok) {
       const e = new Error(`HTTP ${r.status}${r.statusText ? " " + r.statusText : ""}`);
       e.httpStatus = r.status;
+      // En cross-origin cet en-tête n'est lisible que s'il est exposé : l'absence est normale.
+      e.retryAfter = parseRetryAfter(r.headers.get("Retry-After"));
       throw e;
     }
     const text = await r.text();
@@ -627,6 +661,25 @@ async function fetchJson(url, timeoutMs = 45000) {
     }
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * Un échec réseau (CORS, hôte injoignable) n'est pas retenté : il ne guérira pas
+ * et il faut basculer vite sur l'accès suivant. Seule une surcharge serveur l'est.
+ */
+async function fetchJson(url, { attempts = 4, timeoutMs = 45000 } = {}) {
+  for (let i = 0; ; i++) {
+    await pace();
+    try {
+      return await fetchOnce(url, timeoutMs);
+    } catch (e) {
+      const retryable = e.httpStatus && RETRYABLE.has(e.httpStatus);
+      if (!retryable || i >= attempts - 1) throw e;
+      const delay = retryDelay(i, e.retryAfter);
+      if (onNetworkWait) onNetworkWait({ attempt: i + 1, maxRetries: attempts - 1, delayMs: delay, error: e });
+      await sleep(delay);
+    }
   }
 }
 
@@ -664,6 +717,7 @@ function describeFailure({ strategy, error }) {
     return location.protocol === "file:"
       ? "sans objet pour un fichier ouvert en local"
       : "aucun relais à cette adresse — votre hébergeur ne relaie pas /api/…";
+  if (error.httpStatus === 429) return "limite de débit atteinte (HTTP 429), même après plusieurs tentatives";
   if (error.httpStatus) return `réponse HTTP ${error.httpStatus}`;
   if (error.notJson) return error.message;
   return "requête bloquée par le navigateur (CORS) ou service injoignable";
@@ -684,16 +738,28 @@ class ApiUnreachable extends Error {
   get apiRefused() {
     return this.attempts.some((a) => a.strategy.kind !== "local" && a.error.httpStatus);
   }
+  /** Refus lié au débit : le message et la conduite à tenir ne sont pas les mêmes. */
+  get rateLimited() {
+    return this.attempts.some((a) => a.error.httpStatus === 429);
+  }
 }
 
 /* ------------------------------------------------- energy-charts series */
 
-/** Découpe une période en tranches de ~35 jours (requêtes plus sûres et cache plus fin). */
-function chunkRange(fromIso, toIso, days = 35) {
+/**
+ * Découpe une période en tranches alignées sur les trimestres civils.
+ * L'API limite le débit : un trimestre demandé en une requête plutôt qu'en trois
+ * réduit d'autant le risque de 429, et les bornes fixes rendent le cache réutilisable
+ * d'une sélection à l'autre.
+ */
+function chunkRange(fromIso, toIso) {
   const out = [];
   let cur = fromIso;
   while (cur <= toIso) {
-    let end = addDaysIso(cur, days - 1);
+    const y = +cur.slice(0, 4);
+    const endMonth = (Math.floor((+cur.slice(5, 7) - 1) / 3) + 1) * 3;
+    const lastDay = new Date(Date.UTC(y, endMonth, 0)).getUTCDate();
+    let end = `${y}-${String(endMonth).padStart(2, "0")}-${lastDay}`;
     if (end > toIso) end = toIso;
     out.push([cur, end]);
     cur = addDaysIso(end, 1);
@@ -1183,7 +1249,11 @@ function unreachableHtml(err) {
   const usingRelay = state.source === "custom" || state.source.startsWith("relay:");
 
   let advice;
-  if (err.apiRefused) {
+  if (err.rateLimited) {
+    advice = "L'API limite le nombre de requêtes et refuse encore après plusieurs tentatives espacées. "
+           + "Patientez une minute, puis relancez : les tranches déjà récupérées sont en cache et ne seront "
+           + "pas redemandées.";
+  } else if (err.apiRefused) {
     advice = "L'API a répondu, mais en erreur : la période demandée est peut-être hors de sa couverture.";
   } else if (usingRelay) {
     advice = "Le relais choisi ne répond pas. Essayez l'autre relais, ou lancez <code>python3 serve.py</code> en local.";
@@ -1198,7 +1268,7 @@ function unreachableHtml(err) {
     advice = "Vérifiez votre connexion, puis relancez le calcul.";
   }
 
-  const offer = usingRelay || err.apiRefused ? "" :
+  const offer = usingRelay || err.apiRefused || err.rateLimited ? "" :
     `<div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">`
     + `<span style="font-size:12.5px;color:var(--text-muted)">Réessayer via un relais public :</span>`
     + Object.entries(RELAYS).map(([k, r]) =>
@@ -1251,13 +1321,23 @@ async function run() {
   $("btnRun").disabled = true;
 
   try {
-    const fetchFrom = range.from;
-    const fetchTo = addDaysIso(range.to, 1);           // marge : couvre bien la dernière journée
-    const chunks = chunkRange(fetchFrom, fetchTo);
+    // Marge d'un jour pour couvrir toute la journée finale, absorbée par la dernière
+    // tranche plutôt qu'en ouvrant une tranche — donc une requête — de plus.
+    const chunks = chunkRange(range.from, range.to);
+    const tail = chunks[chunks.length - 1];
+    tail[1] = addDaysIso(tail[1], 1);
     const needFx = state.currency === "chf-daily";
     const steps = chunks.length * 2 + (needFx ? 1 : 0);
     let done = 0;
     const tick = (label) => setStatus(label, "", ++done / steps);
+
+    onNetworkWait = ({ attempt, maxRetries, delayMs, error }) => {
+      const why = error.httpStatus === 429
+        ? "Limite de débit de l'API atteinte"
+        : `Service momentanément indisponible (HTTP ${error.httpStatus})`;
+      setStatus(`${why} — nouvelle tentative dans ${Math.round(delayMs / 1000)} s `
+        + `(${attempt}/${maxRetries})…`, "warn", done / steps);
+    };
 
     setStatus("Récupération de la production nationale…", "", 0);
     const powerRaw = [];
@@ -1322,6 +1402,7 @@ async function run() {
     if (e instanceof ApiUnreachable) setStatus(unreachableHtml(e), "err");
     else setStatus("<strong>Erreur :</strong> " + esc(e.message), "err");
   } finally {
+    onNetworkWait = null;
     running = false;
     $("btnRun").disabled = false;
   }
