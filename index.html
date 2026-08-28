@@ -287,7 +287,9 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
           <option value="auto">Automatique (direct, puis relais local)</option>
           <option value="direct">Direct — api.energy-charts.info</option>
           <option value="local">Relais local — /api/… (serve.py)</option>
-          <option value="custom">Relais CORS personnalisé</option>
+          <option value="relay:allorigins">Relais public — allorigins.win</option>
+          <option value="relay:codetabs">Relais public — codetabs.com</option>
+          <option value="custom">Relais personnalisé</option>
         </select>
       </div>
       <div class="field hidden" id="fProxy" style="flex:1 1 320px">
@@ -306,8 +308,10 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
         <button class="ghost" id="btnClearCache" type="button">Vider le cache</button>
       </div>
     </div>
-    <p class="hint">Si le navigateur bloque l'appel direct (CORS), lancez <code>python3 serve.py</code> dans le
-    dossier et ouvrez <code>http://localhost:8765</code> : le relais local supprime le problème.</p>
+    <p class="hint">Si le navigateur bloque l'appel direct (CORS) : en local, lancez <code>python3 serve.py</code>
+    puis ouvrez <code>http://localhost:8765</code>. Sur un hébergement statique (GitHub Pages), il n'y a pas de
+    relais local — choisissez un relais public ci-dessus, en sachant que vos requêtes transitent alors par un
+    service tiers.</p>
   </details>
 </section>
 
@@ -501,8 +505,9 @@ const state = {
   tech: "Solar",
   currency: "chf-daily",    // "chf-daily" | "chf-fixed" | "eur"
   fixedRate: 0.94,
-  source: "auto",           // "auto" | "direct" | "local" | "custom"
+  source: "auto",           // "auto" | "direct" | "local" | "relay:<clé>" | "custom"
   proxy: "",
+  deadStrategies: new Set(),// accès dont on sait qu'ils ne répondront pas dans cette session
   cache: "on",
   resolvedFetcher: null,    // stratégie réseau qui a fonctionné
   last: null,               // dernier résultat calculé
@@ -563,45 +568,69 @@ function ttlFor(endIso) {
   return daysOld > 20 ? 30 * 864e5 : 30 * 60e3;
 }
 
-/** Construit la liste des stratégies d'accès à essayer, dans l'ordre. */
+/** Relais publics, proposés en un clic quand l'appel direct est bloqué. Jamais utilisés d'office. */
+const RELAYS = {
+  allorigins: { label: "allorigins.win", tpl: "https://api.allorigins.win/raw?url={url}" },
+  codetabs:   { label: "codetabs.com",   tpl: "https://api.codetabs.com/v1/proxy?quest={url}" },
+};
+
+/** Applique un gabarit de relais à un chemin d'API. */
+function viaRelay(tpl, path) {
+  const full = API + path;
+  if (tpl.includes("{url}")) return tpl.replace("{url}", encodeURIComponent(full));
+  return tpl + (tpl.endsWith("=") ? encodeURIComponent(full) : full);
+}
+
+/** Construit la liste des accès à essayer, dans l'ordre. */
 function fetchStrategies() {
   const sameOrigin = location.protocol === "http:" || location.protocol === "https:";
-  const local = (path) => new URL("api" + path, location.href.replace(/[^/]*$/, "")).toString();
-  const direct = (path) => API + path;
-  const custom = (path) => state.proxy.includes("{url}")
-    ? state.proxy.replace("{url}", encodeURIComponent(API + path))
-    : state.proxy + (state.proxy.endsWith("=") ? encodeURIComponent(API + path) : API + path);
+  const direct = { name: "direct", kind: "direct", label: "appel direct à api.energy-charts.info",
+                   url: (path) => API + path };
+  const local  = { name: "local", kind: "local", label: "relais local /api/… (serve.py)",
+                   url: (path) => new URL("api" + path, location.href.replace(/[^/]*$/, "")).toString() };
+  const custom = { name: "custom", kind: "relay", label: "relais personnalisé",
+                   url: (path) => viaRelay(state.proxy, path) };
+  const relay = (key) => ({ name: "relay:" + key, kind: "relay", label: "relais " + RELAYS[key].label,
+                            url: (path) => viaRelay(RELAYS[key].tpl, path) });
 
-  switch (state.source) {
-    case "direct": return [{ name: "direct", url: direct }];
-    case "local":  return [{ name: "local",  url: local }];
-    case "custom": return [{ name: "custom", url: custom }];
-    default: {
-      const list = [{ name: "direct", url: direct }];
-      if (sameOrigin) list.push({ name: "local", url: local });
-      if (state.proxy) list.push({ name: "custom", url: custom });
-      return list;
-    }
+  if (state.source === "direct") return [direct];
+  if (state.source === "local")  return [local];
+  if (state.source === "custom") return [custom];
+  if (state.source.startsWith("relay:")) {
+    const key = state.source.slice(6);
+    if (RELAYS[key]) return [relay(key)];
   }
+  // Mode automatique : direct, puis relais local s'il peut exister. Jamais de service tiers sans accord.
+  const list = [direct];
+  if (sameOrigin) list.push(local);
+  return list.filter((x) => !state.deadStrategies.has(x.name));
 }
 
 async function fetchJson(url, timeoutMs = 45000) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const r = await fetch(url, { signal: ac.signal, headers: { Accept: "application/json" } });
+    // Aucun en-tête personnalisé : la requête reste « simple » et n'entraîne pas de pré-vol CORS.
+    const r = await fetch(url, { signal: ac.signal });
     if (!r.ok) {
-      const e = new Error(`HTTP ${r.status} ${r.statusText} — ${url}`);
-      e.httpStatus = r.status;          // le serveur a répondu : ce n'est pas un problème de CORS
+      const e = new Error(`HTTP ${r.status}${r.statusText ? " " + r.statusText : ""}`);
+      e.httpStatus = r.status;
       throw e;
     }
-    return await r.json();
+    const text = await r.text();
+    try {
+      return JSON.parse(text);
+    } catch (_) {
+      const e = new Error("réponse illisible (ce n'est pas du JSON)");
+      e.notJson = true;
+      throw e;
+    }
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** Appelle un chemin d'API en essayant les stratégies jusqu'à la première qui répond. */
+/** Appelle un chemin d'API en essayant les accès jusqu'au premier qui répond. */
 async function apiGet(path, cacheKey, ttl) {
   const hit = cacheKey ? cacheGet(cacheKey) : null;
   if (hit) return hit;
@@ -610,28 +639,48 @@ async function apiGet(path, cacheKey, ttl) {
     ? [state.resolvedFetcher, ...fetchStrategies().filter((s) => s.name !== state.resolvedFetcher.name)]
     : fetchStrategies();
 
-  let lastErr = null, httpErr = null;
-  for (const s of strategies) {
+  const attempts = [];
+  for (const st of strategies) {
     try {
-      const data = await fetchJson(s.url(path));
-      state.resolvedFetcher = s;
+      const data = await fetchJson(st.url(path));
+      state.resolvedFetcher = st;
       if (cacheKey) cacheSet(cacheKey, data, ttl);
       return data;
     } catch (e) {
-      lastErr = e;
-      if (e.httpStatus) httpErr = e;
+      attempts.push({ strategy: st, error: e });
+      // Un relais local absent le restera : inutile de le réinterroger à chaque tranche.
+      if (st.kind === "local" && (e.httpStatus === 404 || e.httpStatus === 403 || e.notJson)) {
+        state.deadStrategies.add(st.name);
+      }
     }
   }
-  // Si l'API a répondu (même en erreur), le réseau fonctionne : on remonte son message tel quel.
-  if (httpErr) throw new Error("L'API a refusé la requête — " + httpErr.message);
-  throw new NetworkError(lastErr);
+  throw new ApiUnreachable(attempts);
 }
 
-class NetworkError extends Error {
-  constructor(cause) {
-    super("Impossible de joindre l'API energy-charts.");
-    this.name = "NetworkError";
-    this.cause = cause;
+/** Décrit en clair pourquoi un accès a échoué. */
+function describeFailure({ strategy, error }) {
+  if (error.name === "AbortError") return "délai dépassé";
+  if (strategy.kind === "local" && (error.httpStatus === 404 || error.httpStatus === 403 || error.notJson))
+    return "aucun relais à cette adresse — normal sur un hébergement statique comme GitHub Pages";
+  if (error.httpStatus) return `réponse HTTP ${error.httpStatus}`;
+  if (error.notJson) return error.message;
+  return "requête bloquée par le navigateur (CORS) ou service injoignable";
+}
+
+class ApiUnreachable extends Error {
+  constructor(attempts) {
+    super("Impossible de récupérer les données energy-charts.");
+    this.name = "ApiUnreachable";
+    this.attempts = attempts;
+  }
+  /** L'appel direct a-t-il été bloqué côté navigateur plutôt que refusé par l'API ? */
+  get directBlocked() {
+    return this.attempts.some((a) =>
+      a.strategy.kind === "direct" && !a.error.httpStatus && a.error.name !== "AbortError");
+  }
+  /** L'API a-t-elle réellement répondu une erreur ? */
+  get apiRefused() {
+    return this.attempts.some((a) => a.strategy.kind !== "local" && a.error.httpStatus);
   }
 }
 
@@ -1100,6 +1149,8 @@ const curCode = () => (state.currency === "eur" ? "EUR" : "CHF");
 const centUnit = () => (state.currency === "eur" ? "ct€/kWh" : "Rp./kWh");
 const pickVal = (o, k) => (state.currency === "eur" ? o[k + "Eur"] : o[k + "Chf"]);
 
+const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
 function setStatus(msg, kind = "", progress = null) {
   const box = $("status");
   box.className = "status" + (kind ? " " + kind : "");
@@ -1108,6 +1159,50 @@ function setStatus(msg, kind = "", progress = null) {
   const bar = $("progBar");
   if (progress == null) bar.classList.add("hidden");
   else { bar.classList.remove("hidden"); bar.firstElementChild.style.width = Math.round(progress * 100) + "%"; }
+
+  // Un bandeau d'erreur peut proposer de rebasculer sur un relais : on câble ces boutons ici.
+  $("statusMsg").querySelectorAll("button[data-relay]").forEach((b) => {
+    b.onclick = () => {
+      state.source = "relay:" + b.dataset.relay;
+      state.resolvedFetcher = null;
+      $("selSrc").value = state.source;
+      $("fProxy").classList.add("hidden");
+      savePrefs();
+      run();
+    };
+  });
+}
+
+/** Bandeau d'erreur détaillé : ce qui a été tenté, ce qui a échoué, et quoi faire. */
+function unreachableHtml(err) {
+  const lines = err.attempts
+    .map((a) => `<li>${esc(a.strategy.label)} — ${esc(describeFailure(a))}</li>`)
+    .join("");
+  const usingRelay = state.source === "custom" || state.source.startsWith("relay:");
+
+  let advice;
+  if (err.apiRefused) {
+    advice = "L'API a répondu, mais en erreur : la période demandée est peut-être hors de sa couverture.";
+  } else if (usingRelay) {
+    advice = "Le relais choisi ne répond pas. Essayez l'autre relais, ou lancez <code>python3 serve.py</code> en local.";
+  } else if (err.directBlocked) {
+    advice = "Le navigateur a bloqué l'appel direct. Sur un hébergement statique comme GitHub Pages, "
+           + "il n'y a pas de relais local : passez par un relais public, ou lancez <code>python3 serve.py</code> en local.";
+  } else {
+    advice = "Vérifiez votre connexion, puis relancez le calcul.";
+  }
+
+  const offer = usingRelay || err.apiRefused ? "" :
+    `<div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">`
+    + `<span style="font-size:12.5px;color:var(--text-muted)">Réessayer via un relais public :</span>`
+    + Object.entries(RELAYS).map(([k, r]) =>
+        `<button class="ghost" type="button" data-relay="${k}">${r.label}</button>`).join("")
+    + `</div><p class="hint" style="margin-top:7px">Vos requêtes transiteront alors par ce service tiers. `
+    + `Elles ne contiennent que la période demandée — aucune donnée personnelle.</p>`;
+
+  return `<strong>Impossible de récupérer les données.</strong>`
+       + `<ul style="margin:8px 0 0;padding-left:20px">${lines}</ul>`
+       + `<p style="margin:9px 0 0">${advice}</p>${offer}`;
 }
 
 /** Bornes ISO [du, au] de la sélection courante, ou une erreur explicite. */
@@ -1209,25 +1304,17 @@ async function run() {
 
     const cov = res.coverage;
     const kind = cov > 0.98 ? "ok" : cov > 0.85 ? "warn" : "err";
-    const via = state.resolvedFetcher ? state.resolvedFetcher.name : "?";
+    const via = state.resolvedFetcher ? state.resolvedFetcher.label : "accès inconnu";
     setStatus(
       `Calcul terminé — ${frDate(range.from)} → ${frDate(range.to)}, couverture ${nf(cov * 100, 1)} % `
-      + `(prix au pas de ${nf(res.priceStepMin, 0)} min, production au pas de ${nf(res.powerStepMin, 0)} min, accès « ${via} »).`
+      + `(prix au pas de ${nf(res.priceStepMin, 0)} min, production au pas de ${nf(res.powerStepMin, 0)} min, ${via}).`
       + (cov <= 0.98 ? " Des heures manquent : le résultat reste une estimation partielle." : "")
       + fxNote, kind);
 
   } catch (e) {
     console.error(e);
-    if (e instanceof NetworkError) {
-      setStatus(
-        "<strong>Impossible de joindre l'API energy-charts.</strong> "
-        + "Le plus souvent, c'est le navigateur qui bloque l'appel direct depuis un fichier local (CORS). "
-        + "Lancez <code>python3 serve.py</code> dans ce dossier puis ouvrez <code>http://localhost:8765</code> — "
-        + "le relais local règle le problème. Détail : <code>"
-        + String((e.cause && e.cause.message) || e.cause || "réseau").replace(/[<>&]/g, "") + "</code>", "err");
-    } else {
-      setStatus("<strong>Erreur :</strong> " + String(e.message).replace(/[<>&]/g, ""), "err");
-    }
+    if (e instanceof ApiUnreachable) setStatus(unreachableHtml(e), "err");
+    else setStatus("<strong>Erreur :</strong> " + esc(e.message), "err");
   } finally {
     running = false;
     $("btnRun").disabled = false;
@@ -1427,7 +1514,8 @@ function bind() {
   state.tech = p.tech || "Solar";
   state.currency = p.currency || "chf-daily";
   state.fixedRate = p.fixedRate || 0.94;
-  state.source = p.source || "auto";
+  const knownSources = ["auto", "direct", "local", "custom", ...Object.keys(RELAYS).map((k) => "relay:" + k)];
+  state.source = knownSources.includes(p.source) ? p.source : "auto";
   state.proxy = p.proxy || "";
   state.cache = p.cache || "on";
 
@@ -1492,10 +1580,16 @@ function bind() {
   $("selSrc").onchange = (e) => {
     state.source = e.target.value;
     state.resolvedFetcher = null;
+    state.deadStrategies.clear();
     $("fProxy").classList.toggle("hidden", state.source !== "custom");
     savePrefs();
   };
-  $("inProxy").onchange = (e) => { state.proxy = e.target.value.trim(); state.resolvedFetcher = null; savePrefs(); };
+  $("inProxy").onchange = (e) => {
+    state.proxy = e.target.value.trim();
+    state.resolvedFetcher = null;
+    state.deadStrategies.clear();
+    savePrefs();
+  };
   $("selCache").onchange = (e) => { state.cache = e.target.value; savePrefs(); };
   $("btnClearCache").onclick = () => { clearCache(); setStatus("Cache vidé.", "ok"); };
 

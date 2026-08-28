@@ -37,6 +37,22 @@ python3 serve.py 9000      # autre port
 python3 serve.py --no-open # sans ouvrir le navigateur
 ```
 
+### 3. Publier sur GitHub Pages
+
+Activez Pages sur la branche voulue (Settings → Pages → Source : la branche, dossier `/`). La page se charge
+telle quelle — mais **Pages est un hébergement statique : il n'y a pas de relais**, `serve.py` n'y tourne pas.
+Deux cas :
+
+- si `api.energy-charts.info` autorise les appels navigateur, tout fonctionne sans rien faire ;
+- sinon le navigateur bloque l'appel (CORS). L'application le dit explicitement et propose, en un clic, de
+  repasser par un **relais public** (`allorigins.win` ou `codetabs.com`). Le choix est mémorisé.
+
+Un relais public est un service tiers : vos requêtes y transitent. Elles ne contiennent que la période
+demandée, mais si cela vous gêne — ou si le relais est lent — utilisez `serve.py` en local, ou déployez le
+relais sur une plateforme que vous contrôlez (Cloudflare Workers, Netlify, Vercel) et renseignez son adresse
+dans « Relais personnalisé » : le champ accepte un gabarit avec `{url}`, par exemple
+`https://mon-relais.example/?url={url}`.
+
 ## Ce que fait l'application
 
 **Entrées**
