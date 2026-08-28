@@ -1,0 +1,4 @@
+# Même règle que netlify.toml, au format « _redirects ».
+# Utile pour un déploiement par glisser-déposer du dossier, où netlify.toml
+# n'est pas toujours pris en compte. Les deux peuvent coexister.
+/api/*  https://api.energy-charts.info/:splat  200

@@ -37,11 +37,33 @@ python3 serve.py 9000      # autre port
 python3 serve.py --no-open # sans ouvrir le navigateur
 ```
 
-### 3. Publier sur GitHub Pages
+### 3. Déployer sur Netlify (recommandé pour une mise en ligne)
 
-Activez Pages sur la branche voulue (Settings → Pages → Source : la branche, dossier `/`). La page se charge
-telle quelle — mais **Pages est un hébergement statique : il n'y a pas de relais**, `serve.py` n'y tourne pas.
-Deux cas :
+Le dépôt contient déjà `netlify.toml` et `_redirects`. Ils demandent à Netlify de **relayer `/api/…` vers
+energy-charts côté serveur** :
+
+```
+/api/*  https://api.energy-charts.info/:splat  200
+```
+
+Le `200` est essentiel : c'est un proxy, pas une redirection. Le navigateur n'appelle qu'une seule origine —
+la vôtre — et la question du CORS disparaît. C'est exactement ce que fait `serve.py` en local.
+
+Déployez le **dossier** (ou branchez le dépôt), pas le seul `index.html` : un fichier isolé n'emporte pas les
+règles de relais. Si le site est déjà en ligne sans elles, il suffit de redéployer avec les deux fichiers à la
+racine.
+
+Le même principe vaut pour Vercel — créez un `vercel.json` :
+
+```json
+{ "rewrites": [{ "source": "/api/:path*", "destination": "https://api.energy-charts.info/:path*" }] }
+```
+
+### 4. Publier sur GitHub Pages
+
+Activez Pages sur la branche voulue (Settings → Pages → Source : la branche, dossier `/`). Contrairement à
+Netlify, **Pages ne sait pas relayer** : `netlify.toml` et `_redirects` y sont ignorés, et `serve.py` n'y
+tourne pas. Deux cas :
 
 - si `api.energy-charts.info` autorise les appels navigateur, tout fonctionne sans rien faire ;
 - sinon le navigateur bloque l'appel (CORS). L'application le dit explicitement et propose, en un clic, de
@@ -95,10 +117,12 @@ plus tard 10 jours ouvrés après la fin du trimestre
 
 ## Sous le capot
 
-| Fichier      | Rôle |
-|--------------|------|
-| `index.html` | Toute l'application : interface, calcul, graphiques SVG écrits à la main. |
-| `serve.py`   | Serveur local optionnel + relais CORS vers energy-charts. |
+| Fichier        | Rôle |
+|----------------|------|
+| `index.html`   | Toute l'application : interface, calcul, graphiques SVG écrits à la main. |
+| `serve.py`     | Serveur local optionnel + relais vers energy-charts. |
+| `netlify.toml` | Dossier publié + règle de relais `/api/…` pour Netlify. |
+| `_redirects`   | La même règle, au format accepté par un déploiement glisser-déposer. |
 
 Requêtes utilisées (découpées en tranches de 35 jours, mises en cache dans le navigateur) :
 

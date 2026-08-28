@@ -1,0 +1,14 @@
+# Netlify relaie /api/… vers energy-charts côté serveur.
+# Le navigateur n'appelle donc qu'une seule origine — la vôtre — et la question
+# du CORS ne se pose plus. C'est exactement ce que fait serve.py en local.
+#
+# Le dossier publié est la racine du dépôt : index.html est servi tel quel.
+
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://api.energy-charts.info/:splat"
+  status = 200          # 200 = proxy côté serveur (une 301/302 renverrait au CORS)
+  force = true

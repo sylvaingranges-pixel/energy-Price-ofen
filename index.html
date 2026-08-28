@@ -586,7 +586,7 @@ function fetchStrategies() {
   const sameOrigin = location.protocol === "http:" || location.protocol === "https:";
   const direct = { name: "direct", kind: "direct", label: "appel direct à api.energy-charts.info",
                    url: (path) => API + path };
-  const local  = { name: "local", kind: "local", label: "relais local /api/… (serve.py)",
+  const local  = { name: "local", kind: "local", label: "relais /api/… (serve.py, ou règle Netlify)",
                    url: (path) => new URL("api" + path, location.href.replace(/[^/]*$/, "")).toString() };
   const custom = { name: "custom", kind: "relay", label: "relais personnalisé",
                    url: (path) => viaRelay(state.proxy, path) };
@@ -661,7 +661,9 @@ async function apiGet(path, cacheKey, ttl) {
 function describeFailure({ strategy, error }) {
   if (error.name === "AbortError") return "délai dépassé";
   if (strategy.kind === "local" && (error.httpStatus === 404 || error.httpStatus === 403 || error.notJson))
-    return "aucun relais à cette adresse — normal sur un hébergement statique comme GitHub Pages";
+    return location.protocol === "file:"
+      ? "sans objet pour un fichier ouvert en local"
+      : "aucun relais à cette adresse — votre hébergeur ne relaie pas /api/…";
   if (error.httpStatus) return `réponse HTTP ${error.httpStatus}`;
   if (error.notJson) return error.message;
   return "requête bloquée par le navigateur (CORS) ou service injoignable";
@@ -1186,8 +1188,12 @@ function unreachableHtml(err) {
   } else if (usingRelay) {
     advice = "Le relais choisi ne répond pas. Essayez l'autre relais, ou lancez <code>python3 serve.py</code> en local.";
   } else if (err.directBlocked) {
-    advice = "Le navigateur a bloqué l'appel direct. Sur un hébergement statique comme GitHub Pages, "
-           + "il n'y a pas de relais local : passez par un relais public, ou lancez <code>python3 serve.py</code> en local.";
+    advice = location.protocol === "file:"
+      ? "Le navigateur a bloqué l'appel direct depuis un fichier local. Lancez <code>python3 serve.py</code> "
+        + "dans le dossier, puis ouvrez <code>http://localhost:8765</code>."
+      : "Le navigateur a bloqué l'appel direct. Le plus propre est de faire relayer <code>/api/…</code> par "
+        + "votre hébergeur : le dépôt fournit <code>netlify.toml</code> et <code>_redirects</code> pour Netlify. "
+        + "Sur un hébergement sans relais possible (GitHub Pages), utilisez un relais public.";
   } else {
     advice = "Vérifiez votre connexion, puis relancez le calcul.";
   }
