@@ -1,0 +1,4 @@
+# Journaux et fichiers de travail laissés par les serveurs de test locaux
+*.log
+__pycache__/
+.DS_Store
