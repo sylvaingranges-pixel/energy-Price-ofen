@@ -102,6 +102,42 @@ Le calcul respecte l'heure suisse (`Europe/Zurich`), y compris les journées de 
 d'heure, et aligne en escalier des séries de pas différents (prix horaire ou au quart d'heure, production
 au quart d'heure).
 
+## Archiver les trimestres passés
+
+Par défaut, chaque visiteur redemande à l'API toutes les données de la période affichée. C'est lent et cela
+consomme le quota de l'API, qui répond `429` au-delà d'un certain débit. Les trimestres clos ne changent
+plus jamais : autant les télécharger une fois et les servir depuis le dépôt.
+
+```sh
+python3 fetch_history.py 2020 2026        # tous les trimestres terminés de 2020 à 2026
+python3 fetch_history.py 2025             # une seule année
+python3 fetch_history.py --tech "Solar,Wind onshore" 2024 2026
+```
+
+Le script écrit `data/YYYY-Qn.json` et `data/index.json`. **Committez `data/`** : ce sont des fichiers
+statiques, servis en même origine par Netlify, GitHub Pages ou `serve.py`, sans aucune configuration
+supplémentaire.
+
+L'application lit le manifeste au chargement et, pour chaque trimestre demandé, prend le fichier local s'il
+existe et couvre la technologie choisie. Sinon elle interroge l'API comme avant. Le bandeau final indique
+d'où viennent les données.
+
+Quelques propriétés qui rendent l'archive sûre :
+
+- **Seuls les trimestres terminés sont archivés.** Le trimestre en cours vient toujours de l'API :
+  l'archive ne peut donc jamais être périmée, et il n'y a rien à re-générer périodiquement.
+- **Un second passage ne retélécharge rien** : le script saute les trimestres déjà présents, sauf `--force`.
+- **Les taux de change sont inclus**, ce qui supprime aussi la dépendance à frankfurter.dev sur les
+  périodes archivées.
+- **Le résultat est identique** à celui obtenu en direct — vérifié au bit près sur toutes les grandeurs
+  du calcul.
+
+Comptez **environ 100 Ko par trimestre**, soit 400 Ko par année archivée : la grille temporelle étant
+régulière, elle est stockée en trois nombres au lieu d'une liste de 8832 horodatages.
+
+Si la technologie choisie n'est pas dans l'archive (elle ne contient que `Solar` par défaut), l'application
+retombe simplement sur l'API pour cette période — ajoutez-la avec `--tech` si vous l'utilisez souvent.
+
 ## Précision
 
 C'est une **estimation**, pas la valeur officielle :
@@ -123,6 +159,8 @@ plus tard 10 jours ouvrés après la fin du trimestre
 | `serve.py`     | Serveur local optionnel + relais vers energy-charts. |
 | `netlify.toml` | Dossier publié + règle de relais `/api/…` pour Netlify. |
 | `_redirects`   | La même règle, au format accepté par un déploiement glisser-déposer. |
+| `fetch_history.py` | Constitue l'archive des trimestres clos dans `data/`. |
+| `data/`        | L'archive elle-même — un fichier par trimestre, plus un manifeste. |
 
 Requêtes utilisées (découpées en tranches de 35 jours, mises en cache dans le navigateur) :
 

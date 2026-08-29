@@ -525,6 +525,7 @@ const state = {
   source: "auto",           // "auto" | "direct" | "local" | "relay:<clé>" | "custom"
   proxy: "",
   deadStrategies: new Set(),// accès dont on sait qu'ils ne répondront pas dans cette session
+  knownTechs: new Set(),    // technologies vues jusqu'ici ; l'archive n'en couvre qu'une partie
   cache: "on",
   resolvedFetcher: null,    // stratégie réseau qui a fonctionné
   last: null,               // dernier résultat calculé
@@ -829,6 +830,75 @@ function techNames(responses) {
     }
   }
   return [...names];
+}
+
+/* =====================================================================
+   Archive locale : trimestres clos servis depuis le dépôt
+   Des fichiers JSON statiques, en même origine — donc sans configuration
+   d'hébergement, sans CORS et sans consommer le quota de l'API.
+   Invariant : l'archive ne contient QUE des trimestres terminés. Le
+   trimestre en cours vient toujours de l'API, l'archive ne périme jamais.
+   ===================================================================== */
+
+const ARCHIVE_INDEX = "data/index.json";
+let archiveIndex;                        // undefined = pas encore tenté, null = absente
+const archiveFiles = new Map();          // trimestre → contenu déjà chargé
+
+const sameOriginUrl = (rel) => new URL(rel, location.href.replace(/[^/]*$/, "")).toString();
+const quarterKey = (iso) => `${iso.slice(0, 4)}-Q${Math.floor((+iso.slice(5, 7) - 1) / 3) + 1}`;
+
+/** Charge le manifeste une fois. Son absence n'est pas une erreur : on repart en direct. */
+async function loadArchiveIndex() {
+  if (archiveIndex !== undefined) return archiveIndex;
+  try {
+    const r = await fetch(sameOriginUrl(ARCHIVE_INDEX), { cache: "no-cache" });
+    if (!r.ok) throw new Error("absente");
+    const idx = await r.json();
+    archiveIndex = idx && idx.quarters && typeof idx.quarters === "object" ? idx : null;
+  } catch (_) {
+    archiveIndex = null;
+  }
+  return archiveIndex;
+}
+
+/** Le trimestre est-il utilisable pour la technologie demandée ? */
+function archiveCovers(key, tech) {
+  const q = archiveIndex && archiveIndex.quarters[key];
+  return !!(q && q.complete && Array.isArray(q.techs) && q.techs.includes(tech));
+}
+
+async function loadArchiveQuarter(key) {
+  if (archiveFiles.has(key)) return archiveFiles.get(key);
+  const meta = archiveIndex.quarters[key];
+  const r = await fetch(sameOriginUrl("data/" + (meta.file || key + ".json")), { cache: "no-cache" });
+  if (!r.ok) throw new Error(`archive ${key} : HTTP ${r.status}`);
+  const data = await r.json();
+  archiveFiles.set(key, data);
+  return data;
+}
+
+/** Une grille régulière est stockée comme {t0, step, n} ; un trou la fait retomber sur {t}. */
+function expandTimes(o) {
+  if (Array.isArray(o.t)) return o.t;
+  const out = new Array(o.n);
+  for (let i = 0; i < o.n; i++) out[i] = o.t0 + i * o.step;
+  return out;
+}
+
+/** Rend les données archivées sous la forme exacte que renvoie l'API : rien d'autre à adapter. */
+function archiveAsApiShape(data) {
+  return {
+    price: {
+      unix_seconds: expandTimes(data.price),
+      price: data.price.v,
+      unit: data.price.unit || "EUR/MWh",
+    },
+    power: {
+      unix_seconds: expandTimes(data.power),
+      production_types: Object.entries(data.power.techs).map(([name, d]) => ({ name, data: d })),
+    },
+    fx: data.fx || null,
+  };
 }
 
 /* ----------------------------------------------------------- taux de change */
@@ -1383,13 +1453,12 @@ async function run() {
     // resolveRange() doit lever à l'intérieur du try : sinon l'erreur ressort de la
     // promesse sans message ni bouton réarmé.
     const range = resolveRange();
-    // Marge d'un jour pour couvrir toute la journée finale, absorbée par la dernière
-    // tranche plutôt qu'en ouvrant une tranche — donc une requête — de plus.
     const chunks = chunkRange(range.from, range.to);
-    const tail = chunks[chunks.length - 1];
-    tail[1] = addDaysIso(tail[1], 1);
+    await loadArchiveIndex();
     const needFx = state.currency === "chf-daily";
-    const steps = chunks.length * 2 + (needFx ? 1 : 0);
+    // Une tranche archivée compte pour une étape (un fichier), une tranche en ligne pour deux.
+    const steps = chunks.reduce((n, [a]) => n + (archiveCovers(quarterKey(a), state.tech) ? 1 : 2), 0)
+                + (needFx ? 1 : 0);
     let done = 0;
     const tick = (label) => setStatus(label, "", ++done / steps);
 
@@ -1401,34 +1470,57 @@ async function run() {
         + `(${attempt}/${maxRetries})…`, "warn", done / steps);
     };
 
-    setStatus("Récupération de la production nationale…", "", 0);
-    const powerRaw = [];
+    const powerRaw = [], priceRaw = [];
+    const archivedFx = {};
+    let fromArchive = 0, fromApi = 0;
+
     for (const [a, b] of chunks) {
-      const path = `/public_power?country=ch&start=${a}&end=${b}`;
-      powerRaw.push(await apiGet(path, `pp:${a}:${b}`, ttlFor(b)));
+      const key = quarterKey(a);
+      if (archiveCovers(key, state.tech)) {
+        try {
+          const shaped = archiveAsApiShape(await loadArchiveQuarter(key));
+          priceRaw.push(shaped.price);
+          powerRaw.push(shaped.power);
+          if (shaped.fx) Object.assign(archivedFx, shaped.fx);
+          fromArchive++;
+          tick(`Archive ${key}…`);
+          continue;
+        } catch (e) {
+          console.warn("Archive inutilisable, repli sur l'API :", e);
+        }
+      }
+      // Un jour de marge pour couvrir toute la journée finale ; les recouvrements
+      // entre tranches sont dédoublonnés à la fusion.
+      const end = addDaysIso(b, 1);
+      powerRaw.push(await apiGet(`/public_power?country=ch&start=${a}&end=${end}`, `pp:${a}:${end}`, ttlFor(b)));
       tick(`Production ${frDate(a)} → ${frDate(b)}…`);
+      priceRaw.push(await apiGet(`/price?bzn=CH&start=${a}&end=${end}`, `pr:${a}:${end}`, ttlFor(b)));
+      tick(`Prix ${frDate(a)} → ${frDate(b)}…`);
+      fromApi++;
     }
 
-    // Le sélecteur de technologie reflète ce que l'API expose réellement.
+    // Le sélecteur de technologie reflète ce qui est réellement disponible.
     syncTechOptions(techNames(powerRaw));
 
-    setStatus("Récupération des prix spot day-ahead…", "", done / steps);
-    const priceRaw = [];
-    for (const [a, b] of chunks) {
-      const path = `/price?bzn=CH&start=${a}&end=${b}`;
-      priceRaw.push(await apiGet(path, `pr:${a}:${b}`, ttlFor(b)));
-      tick(`Prix ${frDate(a)} → ${frDate(b)}…`);
-    }
-
-    let rates = new Map();
+    let rates = new Map(Object.entries(archivedFx));
     let fxNote = "";
     if (needFx) {
-      try {
-        rates = await fetchRates(range.from, range.to);
-        tick("Taux de change…");
-      } catch (e) {
-        fxNote = ` Taux BCE indisponibles (${e.message}) — repli sur le taux fixe ${nf(state.fixedRate, 3)}.`;
-        done++;
+      // Les taux archivés suffisent souvent : on n'appelle le service que pour ce qui manque.
+      let missing = false;
+      for (let d = range.from; d <= range.to && !missing; d = addDaysIso(d, 1))
+        if (!rates.has(d)) missing = true;
+      if (missing) {
+        try {
+          const fetched = await fetchRates(range.from, range.to);
+          for (const [d, v] of fetched) rates.set(d, v);
+          tick("Taux de change…");
+        } catch (e) {
+          if (rates.size === 0)
+            fxNote = ` Taux BCE indisponibles (${e.message}) — repli sur le taux fixe ${nf(state.fixedRate, 3)}.`;
+          done++;
+        }
+      } else {
+        tick("Taux de change (archive)…");
       }
     }
 
@@ -1455,10 +1547,16 @@ async function run() {
 
     const cov = res.coverage;
     const kind = cov > 0.98 ? "ok" : cov > 0.85 ? "warn" : "err";
-    const via = state.resolvedFetcher ? state.resolvedFetcher.label : "accès inconnu";
+    const via = fromApi === 0 ? "archive locale"
+      : state.resolvedFetcher ? state.resolvedFetcher.label : "accès inconnu";
+    const origin = fromArchive > 0 && fromApi > 0
+      ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} depuis l'archive, ${fromApi} depuis l'API.`
+      : fromArchive > 0 ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} servi${fromArchive > 1 ? "s" : ""} depuis l'archive locale.`
+      : "";
     setStatus(
       `Calcul terminé — ${frDate(range.from)} → ${frDate(range.to)}, couverture ${nf(cov * 100, 1)} % `
       + `(prix au pas de ${nf(res.priceStepMin, 0)} min, production au pas de ${nf(res.powerStepMin, 0)} min, ${via}).`
+      + origin
       + (cov <= 0.98 ? " Des heures manquent : le résultat reste une estimation partielle." : "")
       + fxNote, kind);
 
@@ -1485,7 +1583,9 @@ async function run() {
 }
 
 function syncTechOptions(names) {
-  if (!names.length) return;
+  for (const n of names) state.knownTechs.add(n);
+  if (!state.knownTechs.size) return;
+  names = [...state.knownTechs];
   const sel = $("selTech");
   const preferred = ["Solar", "Wind onshore", "Wind offshore", "Hydro Run-of-River", "Hydro water reservoir", "Biomass", "Waste"];
   const ordered = [...preferred.filter((p) => names.includes(p)), ...names.filter((n) => !preferred.includes(n)).sort()];
