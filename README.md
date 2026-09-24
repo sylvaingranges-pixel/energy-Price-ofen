@@ -61,19 +61,17 @@ Le même principe vaut pour Vercel — créez un `vercel.json` :
 
 ### 4. Publier sur GitHub Pages
 
-Activez Pages sur la branche voulue (Settings → Pages → Source : la branche, dossier `/`). Contrairement à
-Netlify, **Pages ne sait pas relayer** : `netlify.toml` et `_redirects` y sont ignorés, et `serve.py` n'y
-tourne pas. Deux cas :
+Activez Pages sur la branche voulue (Settings → Pages → Source : la branche, dossier `/`). Pages ne sait
+pas relayer `/api/…` : les trimestres terminés, lus dans l'archive `data/`, fonctionnent toujours ; le
+trimestre en cours n'est disponible que si `api.energy-charts.info` accepte l'appel direct du navigateur.
+Pour un fonctionnement garanti, préférez Netlify.
 
-- si `api.energy-charts.info` autorise les appels navigateur, tout fonctionne sans rien faire ;
-- sinon le navigateur bloque l'appel (CORS). L'application le dit explicitement et propose, en un clic, de
-  repasser par un **relais public** (`allorigins.win` ou `codetabs.com`). Le choix est mémorisé.
+### Accès aux données : rien à régler
 
-Un relais public est un service tiers : vos requêtes y transitent. Elles ne contiennent que la période
-demandée, mais si cela vous gêne — ou si le relais est lent — utilisez `serve.py` en local, ou déployez le
-relais sur une plateforme que vous contrôlez (Cloudflare Workers, Netlify, Vercel) et renseignez son adresse
-dans « Relais personnalisé » : le champ accepte un gabarit avec `{url}`, par exemple
-`https://mon-relais.example/?url={url}`.
+L'application choisit seule la bonne voie, sans aucun réglage : trimestres clos depuis l'archive du site,
+période en cours par appel direct à l'API, puis — si le navigateur le bloque (CORS) — par le relais
+`/api/…` du site (règle Netlify ou `serve.py`). Le panneau « Données & cache » ne sert plus qu'à vider le
+cache du navigateur.
 
 ## Ce que fait l'application
 
@@ -81,6 +79,7 @@ dans « Relais personnalisé » : le champ accepte un gabarit avec `{url}`, par 
 
 - **Trimestre** — année + Q1/Q2/Q3/Q4. Si le trimestre est en cours, la période s'arrête automatiquement
   au jour d'aujourd'hui : c'est le cas d'usage « anticiper le prix avant sa publication ».
+- **Année** — l'année civile entière (2025, 2026…), arrêtée à aujourd'hui si elle est en cours.
 - **Dates libres** — n'importe quelle période, du jour à l'année.
 - **Pondération** — solaire par défaut ; la liste s'aligne sur les technologies réellement renvoyées par
   l'API (éolien, hydraulique, biomasse…).
@@ -172,7 +171,7 @@ GET https://api.energy-charts.info/public_power?country=ch&start=YYYY-MM-DD&end=
 Les tranches sont **alignées sur les trimestres civils** : un trimestre se récupère en une requête par
 série, et les bornes fixes rendent le cache réutilisable d'une sélection à l'autre. Le cache est court pour
 la période en cours (30 min) et long pour les périodes closes (30 jours) ; il se vide depuis le panneau
-« Source des données & options avancées ».
+« Données & cache ».
 
 **Limite de débit.** L'API refuse les rafales avec un `HTTP 429`. L'application espace ses appels d'environ
 400 ms et retente jusqu'à trois fois en reculant progressivement, en respectant l'en-tête `Retry-After`

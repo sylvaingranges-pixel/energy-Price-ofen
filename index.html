@@ -238,6 +238,7 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
       <span class="lbl" id="lblMode">Période</span>
       <div class="seg" role="group" aria-labelledby="lblMode">
         <button type="button" id="modeQuarter" aria-pressed="true">Trimestre</button>
+        <button type="button" id="modeYear" aria-pressed="false">Année</button>
         <button type="button" id="modeCustom" aria-pressed="false">Dates libres</button>
       </div>
     </div>
@@ -294,39 +295,15 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
   <p class="hint" id="rangeHint"></p>
 
   <details class="adv">
-    <summary>Source des données &amp; options avancées</summary>
+    <summary>Données &amp; cache</summary>
+    <p class="hint">Les trimestres terminés sont lus dans l'archive du site : instantané, rien à configurer.
+    Seule la période en cours est demandée à energy-charts.info, puis gardée quelques minutes dans ce
+    navigateur pour ne pas la redemander à chaque calcul.</p>
     <div class="filter-row">
       <div class="field">
-        <label for="selSrc">Accès à l'API energy-charts</label>
-        <select id="selSrc">
-          <option value="auto">Automatique (direct, puis relais local)</option>
-          <option value="direct">Direct — api.energy-charts.info</option>
-          <option value="local">Relais local — /api/… (serve.py)</option>
-          <option value="relay:allorigins">Relais public — allorigins.win</option>
-          <option value="relay:codetabs">Relais public — codetabs.com</option>
-          <option value="custom">Relais personnalisé</option>
-        </select>
-      </div>
-      <div class="field hidden" id="fProxy" style="flex:1 1 320px">
-        <label for="inProxy">Préfixe du relais</label>
-        <input type="text" id="inProxy" placeholder="https://mon-relais.example/?url=" style="width:100%">
-      </div>
-      <div class="field">
-        <label for="selCache">Cache navigateur</label>
-        <select id="selCache">
-          <option value="on">Activé (localStorage)</option>
-          <option value="off">Désactivé</option>
-        </select>
-      </div>
-      <div class="field">
-        <span class="lbl">&nbsp;</span>
-        <button class="ghost" id="btnClearCache" type="button">Vider le cache</button>
+        <button class="ghost" id="btnClearCache" type="button">Vider le cache du navigateur</button>
       </div>
     </div>
-    <p class="hint">Si le navigateur bloque l'appel direct (CORS) : en local, lancez <code>python3 serve.py</code>
-    puis ouvrez <code>http://localhost:8765</code>. Sur un hébergement statique (GitHub Pages), il n'y a pas de
-    relais local — choisissez un relais public ci-dessus, en sachant que vos requêtes transitent alors par un
-    service tiers.</p>
   </details>
 </section>
 
@@ -354,7 +331,7 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
   <section class="card">
     <div class="card-head">
       <div>
-        <h2>Évolution journalière et convergence du trimestre</h2>
+        <h2>Évolution journalière et convergence</h2>
         <p class="cap" id="cap1"></p>
       </div>
     </div>
@@ -514,7 +491,7 @@ const frMonth = (ym) => {
 /* ------------------------------------------------------------ app state */
 
 const state = {
-  mode: "quarter",          // "quarter" | "custom"
+  mode: "quarter",          // "quarter" | "year" | "custom"
   year: null,
   quarter: null,
   from: null,               // ISO, inclus
@@ -522,11 +499,8 @@ const state = {
   tech: "Solar",
   currency: "chf-daily",    // "chf-daily" | "chf-fixed" | "eur"
   fixedRate: 0.94,
-  source: "auto",           // "auto" | "direct" | "local" | "relay:<clé>" | "custom"
-  proxy: "",
   deadStrategies: new Set(),// accès dont on sait qu'ils ne répondront pas dans cette session
   knownTechs: new Set(),    // technologies vues jusqu'ici ; l'archive n'en couvre qu'une partie
-  cache: "on",
   resolvedFetcher: null,    // stratégie réseau qui a fonctionné
   last: null,               // dernier résultat calculé
 };
@@ -540,7 +514,6 @@ function savePrefs() {
   try {
     localStorage.setItem(PREF_KEY, JSON.stringify({
       tech: state.tech, currency: state.currency, fixedRate: state.fixedRate,
-      source: state.source, proxy: state.proxy, cache: state.cache,
       theme: document.documentElement.getAttribute("data-theme") || "",
     }));
   } catch (_) { /* mode privé : on continue sans mémoriser */ }
@@ -550,7 +523,6 @@ function loadPrefs() {
 }
 
 function cacheGet(key) {
-  if (state.cache !== "on") return null;
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
@@ -560,7 +532,6 @@ function cacheGet(key) {
   } catch (_) { return null; }
 }
 function cacheSet(key, value, ttlMs) {
-  if (state.cache !== "on") return;
   const rec = JSON.stringify({ exp: Date.now() + ttlMs, v: value });
   try {
     localStorage.setItem(CACHE_PREFIX + key, rec);
@@ -586,41 +557,16 @@ function ttlFor(endIso) {
   return daysOld > 20 ? 30 * 864e5 : 30 * 60e3;
 }
 
-/** Relais publics, proposés en un clic quand l'appel direct est bloqué. Jamais utilisés d'office. */
-const RELAYS = {
-  allorigins: { label: "allorigins.win", tpl: "https://api.allorigins.win/raw?url={url}" },
-  codetabs:   { label: "codetabs.com",   tpl: "https://api.codetabs.com/v1/proxy?quest={url}" },
-};
-
-/** Applique un gabarit de relais à un chemin d'API. */
-function viaRelay(tpl, path) {
-  const full = API + path;
-  if (tpl.includes("{url}")) return tpl.replace("{url}", encodeURIComponent(full));
-  return tpl + (tpl.endsWith("=") ? encodeURIComponent(full) : full);
-}
-
-/** Construit la liste des accès à essayer, dans l'ordre. */
+/**
+ * Accès à l'API, dans l'ordre : appel direct, puis relais /api/… de même origine
+ * (règle Netlify ou serve.py). Le premier qui répond est retenu pour la session.
+ */
 function fetchStrategies() {
   const sameOrigin = location.protocol === "http:" || location.protocol === "https:";
-  const direct = { name: "direct", kind: "direct", label: "appel direct à api.energy-charts.info",
-                   url: (path) => API + path };
-  const local  = { name: "local", kind: "local", label: "relais /api/… (serve.py, ou règle Netlify)",
-                   url: (path) => new URL("api" + path, location.href.replace(/[^/]*$/, "")).toString() };
-  const custom = { name: "custom", kind: "relay", label: "relais personnalisé",
-                   url: (path) => viaRelay(state.proxy, path) };
-  const relay = (key) => ({ name: "relay:" + key, kind: "relay", label: "relais " + RELAYS[key].label,
-                            url: (path) => viaRelay(RELAYS[key].tpl, path) });
-
-  if (state.source === "direct") return [direct];
-  if (state.source === "local")  return [local];
-  if (state.source === "custom") return [custom];
-  if (state.source.startsWith("relay:")) {
-    const key = state.source.slice(6);
-    if (RELAYS[key]) return [relay(key)];
-  }
-  // Mode automatique : direct, puis relais local s'il peut exister. Jamais de service tiers sans accord.
-  const list = [direct];
-  if (sameOrigin) list.push(local);
+  const list = [{ name: "direct", kind: "direct", label: "appel direct à api.energy-charts.info",
+                  url: (path) => API + path }];
+  if (sameOrigin) list.push({ name: "local", kind: "local", label: "relais /api/… du site",
+                              url: (path) => sameOriginUrl("api" + path) });
   return list.filter((x) => !state.deadStrategies.has(x.name));
 }
 
@@ -1314,18 +1260,6 @@ function setStatus(msg, kind = "", progress = null) {
   const bar = $("progBar");
   if (progress == null) bar.classList.add("hidden");
   else { bar.classList.remove("hidden"); bar.firstElementChild.style.width = Math.round(progress * 100) + "%"; }
-
-  // Un bandeau d'erreur peut proposer de rebasculer sur un relais : on câble ces boutons ici.
-  $("statusMsg").querySelectorAll("button[data-relay]").forEach((b) => {
-    b.onclick = () => {
-      state.source = "relay:" + b.dataset.relay;
-      state.resolvedFetcher = null;
-      $("selSrc").value = state.source;
-      $("fProxy").classList.add("hidden");
-      savePrefs();
-      run();
-    };
-  });
 }
 
 /** Bandeau d'erreur détaillé : ce qui a été tenté, ce qui a échoué, et quoi faire. */
@@ -1333,7 +1267,6 @@ function unreachableHtml(err) {
   const lines = err.attempts
     .map((a) => `<li>${esc(a.strategy.label)} — ${esc(describeFailure(a))}</li>`)
     .join("");
-  const usingRelay = state.source === "custom" || state.source.startsWith("relay:");
 
   let advice;
   if (err.rateLimited) {
@@ -1342,30 +1275,17 @@ function unreachableHtml(err) {
            + "pas redemandées.";
   } else if (err.apiRefused) {
     advice = "L'API a répondu, mais en erreur : la période demandée est peut-être hors de sa couverture.";
-  } else if (usingRelay) {
-    advice = "Le relais choisi ne répond pas. Essayez l'autre relais, ou lancez <code>python3 serve.py</code> en local.";
-  } else if (err.directBlocked) {
-    advice = location.protocol === "file:"
-      ? "Le navigateur a bloqué l'appel direct depuis un fichier local. Lancez <code>python3 serve.py</code> "
-        + "dans le dossier, puis ouvrez <code>http://localhost:8765</code>."
-      : "Le navigateur a bloqué l'appel direct. Le plus propre est de faire relayer <code>/api/…</code> par "
-        + "votre hébergeur : le dépôt fournit <code>netlify.toml</code> et <code>_redirects</code> pour Netlify. "
-        + "Sur un hébergement sans relais possible (GitHub Pages), utilisez un relais public.";
+  } else if (location.protocol === "file:") {
+    advice = "Le navigateur bloque les appels réseau depuis un fichier ouvert en local. Lancez "
+           + "<code>python3 serve.py</code> dans le dossier, puis ouvrez <code>http://localhost:8765</code>.";
   } else {
-    advice = "Vérifiez votre connexion, puis relancez le calcul.";
+    advice = "Vérifiez votre connexion, puis relancez le calcul. Les trimestres terminés, lus dans "
+           + "l'archive du site, ne sont pas concernés.";
   }
-
-  const offer = usingRelay || err.apiRefused || err.rateLimited ? "" :
-    `<div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">`
-    + `<span style="font-size:12.5px;color:var(--text-muted)">Réessayer via un relais public :</span>`
-    + Object.entries(RELAYS).map(([k, r]) =>
-        `<button class="ghost" type="button" data-relay="${k}">${r.label}</button>`).join("")
-    + `</div><p class="hint" style="margin-top:7px">Vos requêtes transiteront alors par ce service tiers. `
-    + `Elles ne contiennent que la période demandée — aucune donnée personnelle.</p>`;
 
   return `<strong>Impossible de récupérer les données.</strong>`
        + `<ul style="margin:8px 0 0;padding-left:20px">${lines}</ul>`
-       + `<p style="margin:9px 0 0">${advice}</p>${offer}`;
+       + `<p style="margin:9px 0 0">${advice}</p>`;
 }
 
 /** Bornes ISO [du, au] de la sélection courante, ou une erreur explicite. */
@@ -1375,6 +1295,12 @@ function resolveRange() {
     if (!state.from || !state.to) throw new Error("Renseignez les deux dates.");
     if (state.from > state.to) throw new Error("La date de début est postérieure à la date de fin.");
     return { from: state.from, to: state.to > today ? today : state.to, clamped: state.to > today };
+  }
+  if (state.mode === "year") {
+    const y = state.year;
+    if (`${y}-01-01` > today) throw new Error(`L'année ${y} n'a pas encore commencé.`);
+    const to = `${y}-12-31`;
+    return { from: `${y}-01-01`, to: to > today ? today : to, clamped: to > today };
   }
   const q = state.quarter, y = state.year;
   const from = `${y}-${String((q - 1) * 3 + 1).padStart(2, "0")}-01`;
@@ -1405,13 +1331,17 @@ function syncQuarterAvailability() {
     b.setAttribute("aria-pressed", String(+b.dataset.q === state.quarter));
 }
 
+/** Libellé de la période sélectionnée quand elle n'est pas terminée. */
+const inProgressLabel = () =>
+  state.mode === "year" ? "année en cours" : state.mode === "quarter" ? "trimestre en cours" : "période en cours";
+
 function updateHint() {
   try {
     const { from, to, clamped } = resolveRange();
     const days = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1;
     $("rangeHint").textContent =
       `Période analysée : ${frDate(from)} → ${frDate(to)} (${days} jour${days > 1 ? "s" : ""})`
-      + (clamped ? " — trimestre en cours, arrêté au jour d'aujourd'hui." : "");
+      + (clamped ? ` — ${inProgressLabel()} : calcul arrêté à aujourd'hui.` : "");
   } catch (e) {
     $("rangeHint").textContent = e.message;
   }
@@ -1547,11 +1477,11 @@ async function run() {
 
     const cov = res.coverage;
     const kind = cov > 0.98 ? "ok" : cov > 0.85 ? "warn" : "err";
-    const via = fromApi === 0 ? "archive locale"
+    const via = fromApi === 0 ? "archive du site"
       : state.resolvedFetcher ? state.resolvedFetcher.label : "accès inconnu";
     const origin = fromArchive > 0 && fromApi > 0
       ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} depuis l'archive, ${fromApi} depuis l'API.`
-      : fromArchive > 0 ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} servi${fromArchive > 1 ? "s" : ""} depuis l'archive locale.`
+      : fromArchive > 0 ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} servi${fromArchive > 1 ? "s" : ""} depuis l'archive du site.`
       : "";
     setStatus(
       `Calcul terminé — ${frDate(range.from)} → ${frDate(range.to)}, couverture ${nf(cov * 100, 1)} % `
@@ -1628,7 +1558,7 @@ function render(res) {
   $("heroUnit").textContent = unit;
   $("heroSub").innerHTML =
     `${frDate(res.range.from)} → ${frDate(res.range.to)}`
-    + (res.range.clamped ? " · trimestre en cours" : "")
+    + (res.range.clamped ? " · " + inProgressLabel() : "")
     + ` · ${nf(pickVal(t, "weighted"), 2)} ${cur}/MWh`
     + (res.computedAt ? ` · calculé à ${esc(res.computedAt)}` : "");
 
@@ -1661,7 +1591,7 @@ function render(res) {
 
   $("cap1").textContent =
     `Chaque jour de la période, en ${unit}. La courbe cumulée est la moyenne pondérée depuis le début de la période : `
-    + `c'est elle qui converge vers le prix trimestriel définitif.`;
+    + `c'est elle qui converge vers le prix définitif de la période.`;
   legend($("leg1"), [sDaily, sBase, sCum]);
   lineChart($("box1"), $("tip1"), {
     categories: cats, series: [sDaily, sBase, sCum],
@@ -1778,10 +1708,6 @@ function bind() {
   state.tech = p.tech || "Solar";
   state.currency = p.currency || "chf-daily";
   state.fixedRate = p.fixedRate || 0.94;
-  const knownSources = ["auto", "direct", "local", "custom", ...Object.keys(RELAYS).map((k) => "relay:" + k)];
-  state.source = knownSources.includes(p.source) ? p.source : "auto";
-  state.proxy = p.proxy || "";
-  state.cache = p.cache || "on";
 
   // Année et trimestre courants par défaut.
   const today = isoToday();
@@ -1803,21 +1729,20 @@ function bind() {
   $("selTech").value = state.tech;
   $("selCur").value = state.currency;
   $("inRate").value = state.fixedRate;
-  $("selSrc").value = state.source;
-  $("inProxy").value = state.proxy;
-  $("selCache").value = state.cache;
   $("fRate").classList.toggle("hidden", state.currency !== "chf-fixed");
-  $("fProxy").classList.toggle("hidden", state.source !== "custom");
 
   const setMode = (m) => {
     state.mode = m;
     $("modeQuarter").setAttribute("aria-pressed", String(m === "quarter"));
+    $("modeYear").setAttribute("aria-pressed", String(m === "year"));
     $("modeCustom").setAttribute("aria-pressed", String(m === "custom"));
-    for (const id of ["fYear", "fQuarter"]) $(id).classList.toggle("hidden", m !== "quarter");
+    $("fYear").classList.toggle("hidden", m === "custom");
+    $("fQuarter").classList.toggle("hidden", m !== "quarter");
     for (const id of ["fFrom", "fTo"]) $(id).classList.toggle("hidden", m !== "custom");
     updateHint();
   };
   $("modeQuarter").onclick = () => setMode("quarter");
+  $("modeYear").onclick = () => setMode("year");
   $("modeCustom").onclick = () => setMode("custom");
 
   $("selYear").onchange = (e) => { state.year = +e.target.value; syncQuarterAvailability(); updateHint(); };
@@ -1840,21 +1765,10 @@ function bind() {
     savePrefs();
   };
   $("inRate").onchange = (e) => { state.fixedRate = +e.target.value || 0.94; savePrefs(); };
-  $("selSrc").onchange = (e) => {
-    state.source = e.target.value;
-    state.resolvedFetcher = null;
-    state.deadStrategies.clear();
-    $("fProxy").classList.toggle("hidden", state.source !== "custom");
-    savePrefs();
+  $("btnClearCache").onclick = () => {
+    clearCache();
+    setStatus("Cache du navigateur vidé : la période en cours sera redemandée au prochain calcul.", "ok");
   };
-  $("inProxy").onchange = (e) => {
-    state.proxy = e.target.value.trim();
-    state.resolvedFetcher = null;
-    state.deadStrategies.clear();
-    savePrefs();
-  };
-  $("selCache").onchange = (e) => { state.cache = e.target.value; savePrefs(); };
-  $("btnClearCache").onclick = () => { clearCache(); setStatus("Cache vidé.", "ok"); };
 
   $("btnRun").onclick = run;
 
