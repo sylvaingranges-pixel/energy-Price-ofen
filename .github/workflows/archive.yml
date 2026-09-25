@@ -1,0 +1,67 @@
+# Complète l'archive data/ des trimestres clos, sur les serveurs de GitHub.
+#
+# - Automatiquement, chaque jour de la première semaine d'un trimestre : le
+#   trimestre qui vient de se terminer entre dans l'archive sans rien faire.
+# - À la demande (onglet Actions → « Archiver les trimestres clos » → Run
+#   workflow), par exemple pour remonter jusqu'à 2015.
+#
+# Les trimestres déjà archivés sont sautés : un passage sans nouveauté ne
+# commite rien. Le commit sur main redéploie le site.
+
+name: Archiver les trimestres clos
+
+on:
+  schedule:
+    - cron: "17 6 1-7 1,4,7,10 *"
+  workflow_dispatch:
+    inputs:
+      from_year:
+        description: "Première année"
+        default: "2015"
+      to_year:
+        description: "Dernière année (vide = année en cours)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Télécharger les trimestres manquants
+        id: fetch
+        continue-on-error: true
+        env:
+          FROM_YEAR: ${{ inputs.from_year || '2015' }}
+          TO_YEAR: ${{ inputs.to_year }}
+        run: python3 fetch_history.py "$FROM_YEAR" "${TO_YEAR:-$(date -u +%Y)}"
+
+      - name: Committer data/
+        run: |
+          if [ -z "$(git status --porcelain data/)" ]; then
+            echo "Rien de nouveau à archiver."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "Archive : trimestres clos mis à jour"
+          git push
+
+      - name: Signaler les trimestres en échec
+        if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::error::Certains trimestres n'ont pas pu être archivés — voir l'étape « Télécharger »."
+          exit 1

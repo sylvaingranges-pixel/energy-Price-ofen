@@ -121,6 +121,20 @@ L'application lit le manifeste au chargement et, pour chaque trimestre demandé,
 existe et couvre la technologie choisie. Sinon elle interroge l'API comme avant. Le bandeau final indique
 d'où viennent les données.
 
+### Automatiquement, avec GitHub Actions
+
+Le workflow `.github/workflows/archive.yml` fait la même chose sur les serveurs de GitHub, sans rien
+installer :
+
+- **chaque début de trimestre** (du 1er au 7 janvier, avril, juillet et octobre), il ajoute le trimestre qui
+  vient de se terminer et commite `data/` sur `main`, ce qui redéploie le site ;
+- **à la demande** : onglet *Actions* → « Archiver les trimestres clos » → *Run workflow*, en choisissant
+  les années (par défaut depuis 2015).
+
+Les trimestres déjà présents sont sautés, et un passage sans nouveauté ne commite rien. Si un trimestre
+échoue (limite de débit, période non couverte par l'API), les autres sont quand même commités et le
+workflow s'affiche en rouge : relancez-le plus tard.
+
 Quelques propriétés qui rendent l'archive sûre :
 
 - **Seuls les trimestres terminés sont archivés.** Le trimestre en cours vient toujours de l'API :
