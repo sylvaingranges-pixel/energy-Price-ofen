@@ -234,18 +234,22 @@ def main():
         print(f"    → data/{name}  ({size / 1024:.0f} Ko)")
         written += 1
 
-    index["generated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    index["bzn"] = "CH"
-    index["source"] = "energy-charts.info (Fraunhofer ISE), CC BY 4.0"
-    index["quarters"] = dict(sorted(index["quarters"].items()))
-    with open(index_path, "w", encoding="utf-8") as f:
-        json.dump(index, f, ensure_ascii=False, indent=1)
+    # Le manifeste n'est réécrit que s'il change : un passage sans nouveauté ne laisse aucun diff.
+    if written or not os.path.exists(index_path):
+        index["generated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        index["bzn"] = "CH"
+        index["source"] = "energy-charts.info (Fraunhofer ISE), CC BY 4.0"
+        index["quarters"] = dict(sorted(index["quarters"].items()))
+        with open(index_path, "w", encoding="utf-8") as f:
+            json.dump(index, f, ensure_ascii=False, indent=1)
 
     total = sum(e.get("bytes", 0) for e in index["quarters"].values())
     print(f"\n{written} écrit(s), {skipped} déjà présent(s), {failed} en échec.")
     print(f"Archive : {len(index['quarters'])} trimestre(s), {total / 1048576:.1f} Mo dans data/.")
     if written:
         print("Pensez à committer data/ pour que l'archive parte en ligne avec le site.")
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
