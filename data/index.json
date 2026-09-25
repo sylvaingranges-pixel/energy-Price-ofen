@@ -1,5 +1,205 @@
 {
  "quarters": {
+  "2015-Q1": {
+   "file": "2015-Q1.json",
+   "from": "2015-01-01",
+   "to": "2015-03-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 23910
+  },
+  "2015-Q2": {
+   "file": "2015-Q2.json",
+   "from": "2015-04-01",
+   "to": "2015-06-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25045
+  },
+  "2015-Q3": {
+   "file": "2015-Q3.json",
+   "from": "2015-07-01",
+   "to": "2015-09-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25472
+  },
+  "2015-Q4": {
+   "file": "2015-Q4.json",
+   "from": "2015-10-01",
+   "to": "2015-12-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 24745
+  },
+  "2016-Q1": {
+   "file": "2016-Q1.json",
+   "from": "2016-01-01",
+   "to": "2016-03-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25109
+  },
+  "2016-Q2": {
+   "file": "2016-Q2.json",
+   "from": "2016-04-01",
+   "to": "2016-06-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25997
+  },
+  "2016-Q3": {
+   "file": "2016-Q3.json",
+   "from": "2016-07-01",
+   "to": "2016-09-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 26286
+  },
+  "2016-Q4": {
+   "file": "2016-Q4.json",
+   "from": "2016-10-01",
+   "to": "2016-12-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25500
+  },
+  "2017-Q1": {
+   "file": "2017-Q1.json",
+   "from": "2017-01-01",
+   "to": "2017-03-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25033
+  },
+  "2017-Q2": {
+   "file": "2017-Q2.json",
+   "from": "2017-04-01",
+   "to": "2017-06-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 26303
+  },
+  "2017-Q3": {
+   "file": "2017-Q3.json",
+   "from": "2017-07-01",
+   "to": "2017-09-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 26369
+  },
+  "2017-Q4": {
+   "file": "2017-Q4.json",
+   "from": "2017-10-01",
+   "to": "2017-12-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 49536
+  },
+  "2018-Q1": {
+   "file": "2018-Q1.json",
+   "from": "2018-01-01",
+   "to": "2018-03-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 24882
+  },
+  "2018-Q2": {
+   "file": "2018-Q2.json",
+   "from": "2018-04-01",
+   "to": "2018-06-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 26404
+  },
+  "2018-Q3": {
+   "file": "2018-Q3.json",
+   "from": "2018-07-01",
+   "to": "2018-09-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 26614
+  },
+  "2018-Q4": {
+   "file": "2018-Q4.json",
+   "from": "2018-10-01",
+   "to": "2018-12-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25424
+  },
+  "2019-Q1": {
+   "file": "2019-Q1.json",
+   "from": "2019-01-01",
+   "to": "2019-03-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25160
+  },
+  "2019-Q2": {
+   "file": "2019-Q2.json",
+   "from": "2019-04-01",
+   "to": "2019-06-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 26422
+  },
+  "2019-Q3": {
+   "file": "2019-Q3.json",
+   "from": "2019-07-01",
+   "to": "2019-09-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 26677
+  },
+  "2019-Q4": {
+   "file": "2019-Q4.json",
+   "from": "2019-10-01",
+   "to": "2019-12-31",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 25361
+  },
   "2020-Q1": {
    "file": "2020-Q1.json",
    "from": "2020-01-01",
@@ -261,7 +461,7 @@
    "bytes": 28363
   }
  },
- "generated": "2026-08-29T08:50:52+00:00",
+ "generated": "2026-09-25T07:28:00+00:00",
  "bzn": "CH",
  "source": "energy-charts.info (Fraunhofer ISE), CC BY 4.0"
 }
