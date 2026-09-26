@@ -12,3 +12,15 @@
   to = "https://api.energy-charts.info/:splat"
   status = 200          # 200 = proxy côté serveur (une 301/302 renverrait au CORS)
   force = true
+
+# Application installable (PWA) : le service worker et le manifeste doivent
+# toujours être revalidés pour que les mises à jour arrivent sans délai.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"

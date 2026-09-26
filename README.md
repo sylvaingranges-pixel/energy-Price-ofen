@@ -197,3 +197,24 @@ redemandées.
 
 Prix et production : [energy-charts.info](https://www.energy-charts.info), Fraunhofer ISE — CC BY 4.0.
 Taux de change : [frankfurter.dev](https://frankfurter.dev), taux de référence BCE.
+
+## Installer comme application (Android / Chrome, ordinateur)
+
+La page est une PWA : `manifest.webmanifest` + `sw.js` + icônes dans `icons/`.
+Une fois servie en **HTTPS** (Netlify) ou via `localhost`, Chrome propose de l'installer :
+
+- **Android (Chrome)** : menu ⋮ → *Installer l'application* (ou *Ajouter à l'écran d'accueil*).
+  Le bouton « Installer l'app » apparaît aussi en haut de la page quand l'installation est possible.
+- **Ordinateur (Chrome / Edge)** : icône d'installation dans la barre d'adresse.
+- **iPhone (Safari)** : Partager → *Sur l'écran d'accueil*.
+
+Le service worker ne met en cache que l'enveloppe de la page (pour la rouvrir hors ligne) ;
+les données (`/api/…`, `data/…`) viennent toujours du réseau. Pour forcer une mise à jour du cache,
+incrémenter `CACHE` dans `sw.js`. L'installation n'est pas possible en ouvrant `index.html` en `file://`.
+
+## Comparer une période sur plusieurs années
+
+Le mode **Comparer** calcule la même période (un trimestre, l'année complète ou un mois)
+pour chaque année d'un intervalle, par exemple Q3 de 2020 à 2026 : prix pondéré, prix de base,
+facteur de valeur, variation d'une année à l'autre, graphiques et export CSV.
+Les trimestres clos viennent de l'archive du site ; seule la période en cours est demandée à l'API.

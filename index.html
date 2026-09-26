@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prix de reprise PV — Suisse</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#f9f9f7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Prix PV">
 <style>
 /* ---------------------------------------------------------------- tokens */
 :root{
@@ -17,26 +24,6 @@
   --radius:10px;
   --font: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    color-scheme: dark;
-    --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#222221;
-    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#898781;
-    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
-    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
-    --good:#0ca30c; --warning:#fab219; --critical:#d03b3b;
-    --accent-soft:#184f95;
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme: dark;
-  --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#222221;
-  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#898781;
-  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
-  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
-  --accent-soft:#184f95;
-}
-
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
@@ -100,8 +87,9 @@ details.adv .filter-row{margin-top:13px}
    on ne peut pas le confondre avec un résultat à jour, et la page ne saute pas. */
 /* Le voile porte sur le résultat, jamais sur l'avertissement qui l'explique. */
 #results.stale > *:not(#outdated){opacity:.32;filter:saturate(.35);transition:opacity .15s ease}
-#results.stale{pointer-events:none}
-#results.stale > #outdated{pointer-events:auto}
+#compare.stale > *:not(.outdated){opacity:.32;filter:saturate(.35);transition:opacity .15s ease}
+#results.stale,#compare.stale{pointer-events:none}
+#results.stale > #outdated,#compare.stale > .outdated{pointer-events:auto}
 .outdated{
   border:1px solid var(--warning);border-left-width:3px;border-radius:var(--radius);
   background:var(--surface-1);padding:11px 15px;margin-bottom:18px;font-size:13.5px;color:var(--text-primary);
@@ -128,10 +116,10 @@ details.adv .filter-row{margin-top:13px}
   background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius);
   padding:18px 20px;margin-bottom:18px;
 }
-.card > h2{
+.card h2{
   font-size:14px;font-weight:650;margin:0 0 3px;letter-spacing:-.005em;
 }
-.card > .cap{font-size:12.5px;color:var(--text-muted);margin:0 0 16px}
+.card .cap{font-size:12.5px;color:var(--text-muted);margin:0 0 16px}
 
 /* ----------------------------------------------------------- hero + tiles */
 .hero{
@@ -212,11 +200,21 @@ tfoot td{font-weight:650;color:var(--text-primary);border-top:1px solid var(--ax
   font-size:14px;text-align:center;color:var(--text-primary);overflow-x:auto;
 }
 footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
+footer .company{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:18px;padding-top:18px;border-top:1px solid var(--border)}
+footer .company img{height:30px;width:auto}
+footer .company address{font-style:normal;color:var(--text-secondary)}
+footer .company a{color:inherit}
+.brand{display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.brand-logo{height:44px;width:auto;max-width:100%}
+.top-actions{display:flex;gap:8px;align-items:center}
+.install-btn[hidden]{display:none}
+
 @media (max-width:640px){
   .wrap{padding:20px 14px 56px}
   .hero{gap:22px;padding:18px}
   .hero .figure{font-size:44px}
   .filter-row{gap:14px}
+  .seg{flex-wrap:wrap}
 }
 </style>
 </head>
@@ -224,12 +222,17 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
 <div class="wrap">
 
 <header class="top">
-  <div>
+  <div class="brand">
+    <img class="brand-logo" src="icons/gc-energie.png" alt="GC Energie SA" width="142" height="44">
+    <div>
     <h1>Prix de reprise du solaire injecté — Suisse</h1>
     <p class="subtitle">Estimation du prix de marché de référence PV (art.&nbsp;15 OEneR) à partir des prix spot
     day-ahead suisses et de la courbe de production photovoltaïque nationale, avant publication trimestrielle de l'OFEN.</p>
+    </div>
   </div>
-  <button class="theme-btn" id="themeBtn" type="button">Thème auto</button>
+  <div class="top-actions">
+    <button class="theme-btn install-btn" id="installBtn" type="button" hidden>Installer l'app</button>
+  </div>
 </header>
 
 <section class="filters" aria-label="Paramètres du calcul">
@@ -240,6 +243,7 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
         <button type="button" id="modeQuarter" aria-pressed="true">Trimestre</button>
         <button type="button" id="modeYear" aria-pressed="false">Année</button>
         <button type="button" id="modeCustom" aria-pressed="false">Dates libres</button>
+        <button type="button" id="modeCompare" aria-pressed="false">Comparer</button>
       </div>
     </div>
 
@@ -265,6 +269,37 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
     <div class="field hidden" id="fTo">
       <label for="dTo">Au (inclus)</label>
       <input type="date" id="dTo">
+    </div>
+
+    <div class="field hidden" id="fCmpPeriod">
+      <label for="selCmpPeriod">Période comparée</label>
+      <select id="selCmpPeriod">
+        <optgroup label="Trimestre">
+          <option value="q1">Q1 (janv. – mars)</option>
+          <option value="q2">Q2 (avr. – juin)</option>
+          <option value="q3">Q3 (juil. – sept.)</option>
+          <option value="q4">Q4 (oct. – déc.)</option>
+        </optgroup>
+        <optgroup label="Année">
+          <option value="y">Année complète</option>
+        </optgroup>
+        <optgroup label="Mois">
+          <option value="m1">Janvier</option><option value="m2">Février</option>
+          <option value="m3">Mars</option><option value="m4">Avril</option>
+          <option value="m5">Mai</option><option value="m6">Juin</option>
+          <option value="m7">Juillet</option><option value="m8">Août</option>
+          <option value="m9">Septembre</option><option value="m10">Octobre</option>
+          <option value="m11">Novembre</option><option value="m12">Décembre</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="field hidden" id="fCmpFrom">
+      <label for="selCmpFrom">De</label>
+      <select id="selCmpFrom"></select>
+    </div>
+    <div class="field hidden" id="fCmpTo">
+      <label for="selCmpTo">À</label>
+      <select id="selCmpTo"></select>
     </div>
 
     <div class="field">
@@ -376,6 +411,53 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
 
 </main>
 
+<main id="compare" class="hidden">
+
+  <div class="outdated hidden" id="outdatedCmp"></div>
+
+  <section class="card hero" aria-label="Résumé de la comparaison">
+    <div class="main">
+      <div class="eyebrow" id="cmpEyebrow">Comparaison pluriannuelle</div>
+      <div class="figure"><span id="cmpVal">—</span><small id="cmpUnit">Rp./kWh</small></div>
+      <div class="sub" id="cmpSub"></div>
+    </div>
+    <div class="tiles" id="cmpTiles"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Prix de référence année par année</h2>
+        <p class="cap" id="cmpCap1"></p>
+      </div>
+    </div>
+    <div class="legend" id="cmpLeg1"></div>
+    <div class="chartbox" id="cmpBox1"><div class="tip" id="cmpTip1"></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Facteur de valeur</h2>
+        <p class="cap" id="cmpCap2"></p>
+      </div>
+    </div>
+    <div class="legend" id="cmpLeg2"></div>
+    <div class="chartbox" id="cmpBox2"><div class="tip" id="cmpTip2"></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Détail par année</h2>
+        <p class="cap" id="cmpCap3"></p>
+      </div>
+      <button class="ghost" id="btnCsvCmp" type="button">Exporter CSV</button>
+    </div>
+    <div class="tablewrap"><table id="tblCmp"></table></div>
+  </section>
+</main>
+
 <section class="card notes">
   <h3>Comment le chiffre est calculé</h3>
   <p>L'OFEN publie chaque trimestre le <em>prix de marché de référence</em> (art.&nbsp;15 OEneR) : la moyenne des prix
@@ -415,7 +497,13 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
   </ul>
 </section>
 
-<footer>Estimation indicative — sans valeur contractuelle. Données sous licence CC BY 4.0 (Fraunhofer ISE / energy-charts.info).</footer>
+<footer>Estimation indicative — sans valeur contractuelle. Données sous licence CC BY 4.0 (Fraunhofer ISE / energy-charts.info).
+  <div class="company">
+    <img src="icons/gc-energie.png" alt="GC Energie SA" width="97" height="30">
+    <address>© <span id="copyYear">2026</span> GC Energie SA · Chemin-neuf 31, 1987 Hérémence ·
+      <a href="mailto:info@gcenergie.ch">info@gcenergie.ch</a></address>
+  </div>
+</footer>
 
 </div>
 <script>
@@ -491,7 +579,7 @@ const frMonth = (ym) => {
 /* ------------------------------------------------------------ app state */
 
 const state = {
-  mode: "quarter",          // "quarter" | "year" | "custom"
+  mode: "quarter",          // "quarter" | "year" | "custom" | "compare"
   year: null,
   quarter: null,
   from: null,               // ISO, inclus
@@ -503,6 +591,11 @@ const state = {
   knownTechs: new Set(),    // technologies vues jusqu'ici ; l'archive n'en couvre qu'une partie
   resolvedFetcher: null,    // stratégie réseau qui a fonctionné
   last: null,               // dernier résultat calculé
+  cmpPeriod: "q3",          // période comparée : "q1".."q4", "y" ou "m1".."m12"
+  cmpFrom: null,            // première année comparée
+  cmpTo: null,              // dernière année comparée
+  lastCompare: null,        // dernière comparaison calculée
+  shown: null,              // { label, computedAt } du résultat à l'écran
 };
 
 /* -------------------------------------------------------------- storage */
@@ -514,7 +607,6 @@ function savePrefs() {
   try {
     localStorage.setItem(PREF_KEY, JSON.stringify({
       tech: state.tech, currency: state.currency, fixedRate: state.fixedRate,
-      theme: document.documentElement.getAttribute("data-theme") || "",
     }));
   } catch (_) { /* mode privé : on continue sans mémoriser */ }
 }
@@ -1133,9 +1225,11 @@ function drawChart({ box, tip, cfg }) {
         const d = `M${r[0][0]},${base}` + r.map((p) => `L${p[0]},${p[1]}`).join("") + `L${r[r.length - 1][0]},${base}Z`;
         svg.appendChild(el("path", { d, fill: s.color, "fill-opacity": ".13", stroke: "none" }));
       }
-      if (r.length === 1) {
-        svg.appendChild(el("circle", { cx: r[0][0], cy: r[0][1], r: 3, fill: s.color }));
-      } else {
+      if (r.length === 1 || cfg.points) {
+        for (const pt of r)
+          svg.appendChild(el("circle", { cx: pt[0], cy: pt[1], r: 3.5, fill: s.color }));
+      }
+      if (r.length > 1) {
         svg.appendChild(el("path", {
           d: `M${r.map((p) => `${p[0]},${p[1]}`).join("L")}`,
           fill: "none", stroke: s.color, "stroke-width": 2,
@@ -1336,6 +1430,16 @@ const inProgressLabel = () =>
   state.mode === "year" ? "année en cours" : state.mode === "quarter" ? "trimestre en cours" : "période en cours";
 
 function updateHint() {
+  if (state.mode === "compare") {
+    const y1 = Math.min(state.cmpFrom, state.cmpTo), y2 = Math.max(state.cmpFrom, state.cmpTo);
+    const n = y2 - y1 + 1;
+    const cur = cmpRangeFor(y2);
+    $("rangeHint").textContent =
+      `Comparaison : ${cmpPeriodLabel()} de ${y1} à ${y2} (${n} année${n > 1 ? "s" : ""}).`
+      + (!cur ? ` ${cmpPeriodLabel()} ${y2} n'a pas encore commencé et sera ignoré.`
+         : cur.clamped ? ` ${y2} en cours : calcul arrêté à aujourd'hui.` : "");
+    return;
+  }
   try {
     const { from, to, clamped } = resolveRange();
     const days = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1;
@@ -1353,19 +1457,132 @@ let running = false;
 
 /** Met en retrait le résultat affiché tant qu'on ne sait pas s'il est encore valable. */
 function markStale(on) {
-  const res = $("results");
-  if (!res.classList.contains("hidden")) res.classList.toggle("stale", on);
+  for (const id of ["results", "compare"]) {
+    const res = $(id);
+    if (!res.classList.contains("hidden")) res.classList.toggle("stale", on);
+  }
 }
 
 /** Bandeau posé sur un résultat qui n'est plus celui demandé. */
 function showOutdated(html) {
-  const n = $("outdated");
-  if (html) { n.innerHTML = html; n.classList.remove("hidden"); }
-  else { n.classList.add("hidden"); n.innerHTML = ""; }
+  for (const id of ["outdated", "outdatedCmp"]) {
+    const n = $(id);
+    if (html) { n.innerHTML = html; n.classList.remove("hidden"); }
+    else { n.classList.add("hidden"); n.innerHTML = ""; }
+  }
 }
 
 const clockNow = () =>
   new Intl.DateTimeFormat("fr-CH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
+
+/** Charge les données d'une période (archive ou API) et calcule le prix de référence. */
+async function computeRange(range, progress) {
+  const chunks = chunkRange(range.from, range.to);
+  const needFx = state.currency === "chf-daily";
+  const powerRaw = [], priceRaw = [];
+  const archivedFx = {};
+  let fromArchive = 0, fromApi = 0;
+
+  for (const [a, b] of chunks) {
+    const key = quarterKey(a);
+    if (archiveCovers(key, state.tech)) {
+      try {
+        const shaped = archiveAsApiShape(await loadArchiveQuarter(key));
+        priceRaw.push(shaped.price);
+        powerRaw.push(shaped.power);
+        if (shaped.fx) Object.assign(archivedFx, shaped.fx);
+        fromArchive++;
+        progress.tick(`Archive ${key}…`);
+        continue;
+      } catch (e) {
+        console.warn("Archive inutilisable, repli sur l'API :", e);
+      }
+    }
+    // Un jour de marge pour couvrir toute la journée finale ; les recouvrements
+    // entre tranches sont dédoublonnés à la fusion.
+    const end = addDaysIso(b, 1);
+    powerRaw.push(await apiGet(`/public_power?country=ch&start=${a}&end=${end}`, `pp:${a}:${end}`, ttlFor(b)));
+    progress.tick(`Production ${frDate(a)} → ${frDate(b)}…`);
+    priceRaw.push(await apiGet(`/price?bzn=CH&start=${a}&end=${end}`, `pr:${a}:${end}`, ttlFor(b)));
+    progress.tick(`Prix ${frDate(a)} → ${frDate(b)}…`);
+    fromApi++;
+  }
+
+  // Le sélecteur de technologie reflète ce qui est réellement disponible.
+  syncTechOptions(techNames(powerRaw));
+
+  let rates = new Map(Object.entries(archivedFx));
+  let fxNote = "";
+  if (needFx) {
+    // Les taux archivés suffisent souvent : on n'appelle le service que pour ce qui manque.
+    let missing = false;
+    for (let d = range.from; d <= range.to && !missing; d = addDaysIso(d, 1))
+      if (!rates.has(d)) missing = true;
+    if (missing) {
+      try {
+        const fetched = await fetchRates(range.from, range.to);
+        for (const [d, v] of fetched) rates.set(d, v);
+        progress.tick("Taux de change…");
+      } catch (e) {
+        if (rates.size === 0)
+          fxNote = ` Taux BCE indisponibles (${e.message}) — repli sur le taux fixe ${nf(state.fixedRate, 3)}.`;
+        progress.tick(null);
+      }
+    } else {
+      progress.tick("Taux de change (archive)…");
+    }
+  }
+
+  const price = mergePrice(priceRaw);
+  const power = mergePower(powerRaw, state.tech);
+  if (!price.t.length) throw new Error("Aucun prix spot renvoyé pour cette période.");
+  if (!power.t.length) throw new Error(`Aucune production « ${state.tech} » renvoyée pour cette période.`);
+
+  const [fy, fm, fd] = range.from.split("-").map(Number);
+  const [ty, tm, td] = range.to.split("-").map(Number);
+  const startTs = zurichToUnix(fy, fm, fd);
+  const endTs = zurichToUnix(ty, tm, td + 1);
+
+  const res = computeReference(price, power, rates, startTs, endTs, state.fixedRate);
+  res.range = range;
+  res.fxNote = fxNote;
+  res.usedFx = needFx && !fxNote;
+  res.fromArchive = fromArchive;
+  res.fromApi = fromApi;
+  return res;
+}
+
+/** Nombre d'étapes de chargement d'une période, pour la barre de progression. */
+function stepsFor(range) {
+  return chunkRange(range.from, range.to)
+    .reduce((n, [a]) => n + (archiveCovers(quarterKey(a), state.tech) ? 1 : 2), 0)
+    + (state.currency === "chf-daily" ? 1 : 0);
+}
+
+/** Suivi de progression partagé par tous les chargements d'un même calcul. */
+function makeProgress(steps, prefix = "") {
+  const p = {
+    done: 0, steps, prefix,
+    tick(label) {
+      p.done++;
+      if (label) setStatus(p.prefix + label, "", Math.min(1, p.done / p.steps));
+    },
+  };
+  onNetworkWait = ({ attempt, maxRetries, delayMs, error }) => {
+    const why = error.httpStatus === 429
+      ? "Limite de débit de l'API atteinte"
+      : `Service momentanément indisponible (HTTP ${error.httpStatus})`;
+    setStatus(`${p.prefix}${why} — nouvelle tentative dans ${Math.round(delayMs / 1000)} s `
+      + `(${attempt}/${maxRetries})…`, "warn", Math.min(1, p.done / p.steps));
+  };
+  return p;
+}
+
+/** Affiche le bloc de résultats demandé et masque l'autre. */
+function showView(id) {
+  $("results").classList.toggle("hidden", id !== "results");
+  $("compare").classList.toggle("hidden", id !== "compare");
+}
 
 async function run() {
   if (running) return;
@@ -1382,124 +1599,18 @@ async function run() {
   try {
     // resolveRange() doit lever à l'intérieur du try : sinon l'erreur ressort de la
     // promesse sans message ni bouton réarmé.
-    const range = resolveRange();
-    const chunks = chunkRange(range.from, range.to);
-    await loadArchiveIndex();
-    const needFx = state.currency === "chf-daily";
-    // Une tranche archivée compte pour une étape (un fichier), une tranche en ligne pour deux.
-    const steps = chunks.reduce((n, [a]) => n + (archiveCovers(quarterKey(a), state.tech) ? 1 : 2), 0)
-                + (needFx ? 1 : 0);
-    let done = 0;
-    const tick = (label) => setStatus(label, "", ++done / steps);
-
-    onNetworkWait = ({ attempt, maxRetries, delayMs, error }) => {
-      const why = error.httpStatus === 429
-        ? "Limite de débit de l'API atteinte"
-        : `Service momentanément indisponible (HTTP ${error.httpStatus})`;
-      setStatus(`${why} — nouvelle tentative dans ${Math.round(delayMs / 1000)} s `
-        + `(${attempt}/${maxRetries})…`, "warn", done / steps);
-    };
-
-    const powerRaw = [], priceRaw = [];
-    const archivedFx = {};
-    let fromArchive = 0, fromApi = 0;
-
-    for (const [a, b] of chunks) {
-      const key = quarterKey(a);
-      if (archiveCovers(key, state.tech)) {
-        try {
-          const shaped = archiveAsApiShape(await loadArchiveQuarter(key));
-          priceRaw.push(shaped.price);
-          powerRaw.push(shaped.power);
-          if (shaped.fx) Object.assign(archivedFx, shaped.fx);
-          fromArchive++;
-          tick(`Archive ${key}…`);
-          continue;
-        } catch (e) {
-          console.warn("Archive inutilisable, repli sur l'API :", e);
-        }
-      }
-      // Un jour de marge pour couvrir toute la journée finale ; les recouvrements
-      // entre tranches sont dédoublonnés à la fusion.
-      const end = addDaysIso(b, 1);
-      powerRaw.push(await apiGet(`/public_power?country=ch&start=${a}&end=${end}`, `pp:${a}:${end}`, ttlFor(b)));
-      tick(`Production ${frDate(a)} → ${frDate(b)}…`);
-      priceRaw.push(await apiGet(`/price?bzn=CH&start=${a}&end=${end}`, `pr:${a}:${end}`, ttlFor(b)));
-      tick(`Prix ${frDate(a)} → ${frDate(b)}…`);
-      fromApi++;
-    }
-
-    // Le sélecteur de technologie reflète ce qui est réellement disponible.
-    syncTechOptions(techNames(powerRaw));
-
-    let rates = new Map(Object.entries(archivedFx));
-    let fxNote = "";
-    if (needFx) {
-      // Les taux archivés suffisent souvent : on n'appelle le service que pour ce qui manque.
-      let missing = false;
-      for (let d = range.from; d <= range.to && !missing; d = addDaysIso(d, 1))
-        if (!rates.has(d)) missing = true;
-      if (missing) {
-        try {
-          const fetched = await fetchRates(range.from, range.to);
-          for (const [d, v] of fetched) rates.set(d, v);
-          tick("Taux de change…");
-        } catch (e) {
-          if (rates.size === 0)
-            fxNote = ` Taux BCE indisponibles (${e.message}) — repli sur le taux fixe ${nf(state.fixedRate, 3)}.`;
-          done++;
-        }
-      } else {
-        tick("Taux de change (archive)…");
-      }
-    }
-
-    const price = mergePrice(priceRaw);
-    const power = mergePower(powerRaw, state.tech);
-    if (!price.t.length) throw new Error("Aucun prix spot renvoyé pour cette période.");
-    if (!power.t.length) throw new Error(`Aucune production « ${state.tech} » renvoyée pour cette période.`);
-
-    const [fy, fm, fd] = range.from.split("-").map(Number);
-    const [ty, tm, td] = range.to.split("-").map(Number);
-    const startTs = zurichToUnix(fy, fm, fd);
-    const endTs = zurichToUnix(ty, tm, td + 1);
-
-    const res = computeReference(price, power, rates, startTs, endTs, state.fixedRate);
-    res.range = range;
-    res.fxNote = fxNote;
-    res.usedFx = needFx && !fxNote;
-    res.computedAt = clockNow();
-    state.last = res;
-
-    render(res);
-    markStale(false);
-    showOutdated("");
-
-    const cov = res.coverage;
-    const kind = cov > 0.98 ? "ok" : cov > 0.85 ? "warn" : "err";
-    const via = fromApi === 0 ? "archive du site"
-      : state.resolvedFetcher ? state.resolvedFetcher.label : "accès inconnu";
-    const origin = fromArchive > 0 && fromApi > 0
-      ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} depuis l'archive, ${fromApi} depuis l'API.`
-      : fromArchive > 0 ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} servi${fromArchive > 1 ? "s" : ""} depuis l'archive du site.`
-      : "";
-    setStatus(
-      `Calcul terminé — ${frDate(range.from)} → ${frDate(range.to)}, couverture ${nf(cov * 100, 1)} % `
-      + `(prix au pas de ${nf(res.priceStepMin, 0)} min, production au pas de ${nf(res.powerStepMin, 0)} min, ${via}).`
-      + origin
-      + (cov <= 0.98 ? " Des heures manquent : le résultat reste une estimation partielle." : "")
-      + fxNote, kind);
-
+    if (state.mode === "compare") await runCompare();
+    else await runSingle();
   } catch (e) {
     console.error(e);
     if (e instanceof ApiUnreachable) setStatus(unreachableHtml(e), "err");
     else setStatus("<strong>Erreur :</strong> " + esc(e.message), "err");
 
     // Ce qui reste à l'écran est l'ancien calcul : le dire, plutôt que de laisser douter.
-    const prev = state.last;
+    const prev = state.shown;
     if (prev) {
-      showOutdated("<b>Ce résultat n'est plus à jour.</b> Il correspond au calcul de "
-        + `${esc(frDate(prev.range.from))} → ${esc(frDate(prev.range.to))}, lancé à ${esc(prev.computedAt)}. `
+      showOutdated("<b>Ce résultat n'est plus à jour.</b> Il correspond au calcul "
+        + `${esc(prev.label)}, lancé à ${esc(prev.computedAt)}. `
         + "Le calcul demandé n'a pas abouti.");
       markStale(true);
     }
@@ -1510,6 +1621,104 @@ async function run() {
     btn.classList.remove("busy");
     btn.textContent = "Calculer";
   }
+}
+
+async function runSingle() {
+  const range = resolveRange();
+  await loadArchiveIndex();
+  const res = await computeRange(range, makeProgress(stepsFor(range)));
+  res.computedAt = clockNow();
+  state.last = res;
+  state.shown = { label: `de ${frDate(range.from)} → ${frDate(range.to)}`, computedAt: res.computedAt };
+
+  showView("results");
+  render(res);
+  markStale(false);
+  showOutdated("");
+
+  const cov = res.coverage;
+  const kind = cov > 0.98 ? "ok" : cov > 0.85 ? "warn" : "err";
+  const { fromArchive, fromApi } = res;
+  const via = fromApi === 0 ? "archive du site"
+    : state.resolvedFetcher ? state.resolvedFetcher.label : "accès inconnu";
+  const origin = fromArchive > 0 && fromApi > 0
+    ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} depuis l'archive, ${fromApi} depuis l'API.`
+    : fromArchive > 0 ? ` ${fromArchive} trimestre${fromArchive > 1 ? "s" : ""} servi${fromArchive > 1 ? "s" : ""} depuis l'archive du site.`
+    : "";
+  setStatus(
+    `Calcul terminé — ${frDate(range.from)} → ${frDate(range.to)}, couverture ${nf(cov * 100, 1)} % `
+    + `(prix au pas de ${nf(res.priceStepMin, 0)} min, production au pas de ${nf(res.powerStepMin, 0)} min, ${via}).`
+    + origin
+    + (cov <= 0.98 ? " Des heures manquent : le résultat reste une estimation partielle." : "")
+    + res.fxNote, kind);
+}
+
+/* ------------------------------------------------ comparaison pluriannuelle */
+
+const MONTHS_FR = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+
+/** Libellé court de la période comparée (« Q3 », « année », « juillet »). */
+function cmpPeriodLabel(p = state.cmpPeriod) {
+  if (p === "y") return "année complète";
+  if (p[0] === "q") return "Q" + p.slice(1);
+  return MONTHS_FR[+p.slice(1) - 1];
+}
+
+/** Bornes ISO de la période comparée pour une année donnée, ou null si elle n'a pas commencé. */
+function cmpRangeFor(year, p = state.cmpPeriod) {
+  let m1, m2;
+  if (p === "y") { m1 = 1; m2 = 12; }
+  else if (p[0] === "q") { const q = +p.slice(1); m1 = (q - 1) * 3 + 1; m2 = q * 3; }
+  else { m1 = m2 = +p.slice(1); }
+  const from = `${year}-${String(m1).padStart(2, "0")}-01`;
+  const lastDay = new Date(Date.UTC(year, m2, 0)).getUTCDate();
+  const to = `${year}-${String(m2).padStart(2, "0")}-${lastDay}`;
+  const today = isoToday();
+  if (from > today) return null;
+  return { from, to: to > today ? today : to, clamped: to > today };
+}
+
+async function runCompare() {
+  const y1 = Math.min(state.cmpFrom, state.cmpTo), y2 = Math.max(state.cmpFrom, state.cmpTo);
+  const years = [];
+  for (let y = y1; y <= y2; y++) {
+    const range = cmpRangeFor(y);
+    if (range) years.push({ year: y, range });
+  }
+  if (!years.length) throw new Error(`La période ${cmpPeriodLabel()} n'a encore commencé dans aucune des années choisies.`);
+
+  await loadArchiveIndex();
+  const progress = makeProgress(years.reduce((n, x) => n + stepsFor(x.range), 0));
+  const rows = [];
+  for (const x of years) {
+    progress.prefix = `${x.year} — `;
+    const res = await computeRange(x.range, progress);
+    rows.push({ year: x.year, range: x.range, res });
+  }
+
+  const cmp = {
+    period: state.cmpPeriod, from: y1, to: y2, rows,
+    skipped: y2 - y1 + 1 - rows.length,
+    computedAt: clockNow(),
+  };
+  state.lastCompare = cmp;
+  state.shown = { label: `comparant ${cmpPeriodLabel(cmp.period)} ${y1}–${y2}`, computedAt: cmp.computedAt };
+
+  showView("compare");
+  renderCompare(cmp);
+  markStale(false);
+  showOutdated("");
+
+  const minCov = Math.min(...rows.map((r) => r.res.coverage));
+  const api = rows.reduce((n, r) => n + r.res.fromApi, 0);
+  const fxNote = rows.map((r) => r.res.fxNote).find(Boolean) || "";
+  setStatus(
+    `Comparaison terminée — ${cmpPeriodLabel(cmp.period)}, ${rows.length} année${rows.length > 1 ? "s" : ""} `
+    + `(${y1} → ${y2}), couverture minimale ${nf(minCov * 100, 1)} %`
+    + (api ? `, ${api} tranche${api > 1 ? "s" : ""} demandée${api > 1 ? "s" : ""} à l'API.` : ", tout depuis l'archive du site.")
+    + (cmp.skipped ? ` ${cmp.skipped} année${cmp.skipped > 1 ? "s" : ""} ignorée${cmp.skipped > 1 ? "s" : ""} : période pas encore commencée.` : "")
+    + fxNote,
+    minCov > 0.98 ? "ok" : minCov > 0.85 ? "warn" : "err");
 }
 
 function syncTechOptions(names) {
@@ -1657,6 +1866,96 @@ function render(res) {
     ).join("") + "</tbody>";
 }
 
+function renderCompare(cmp) {
+  const unit = centUnit(), cur = curCode();
+  const opt = $("selTech").selectedOptions[0];
+  const techLabel = (opt && opt.textContent) || state.tech;
+  const techShort = ((opt && opt.dataset.short) || techLabel).toLowerCase();
+  const rows = cmp.rows;
+  const per = cmpPeriodLabel(cmp.period);
+  const W = (r) => pickVal(r.res.total, "weighted");
+  const yearLabel = (r) => String(r.year) + (r.range.clamped ? "*" : "");
+
+  /* --- résumé -------------------------------------------------------- */
+  const avg = (xs) => {
+    const v = xs.filter((x) => x != null && isFinite(x));
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const mean = avg(rows.map(W));
+  const byVal = rows.filter((r) => W(r) != null).sort((a, b) => W(a) - W(b));
+  const lo = byVal[0], hi = byVal[byVal.length - 1], last = rows[rows.length - 1];
+  const vsMean = mean && W(last) != null ? (W(last) / mean - 1) * 100 : null;
+
+  $("cmpEyebrow").textContent = `Moyenne ${per} ${cmp.from}–${cmp.to} — ${techLabel}`;
+  $("cmpVal").textContent = nf(CENT(mean), 2);
+  $("cmpUnit").textContent = unit;
+  $("cmpSub").innerHTML =
+    `Moyenne simple des ${rows.length} prix annuels · ${nf(mean, 2)} ${cur}/MWh`
+    + ` · calculé à ${esc(cmp.computedAt)}`;
+
+  const tiles = [
+    { k: `${per} ${last.year}`, v: nf(CENT(W(last)), 2), u: unit,
+      n: last.range.clamped ? "en cours, jusqu'à aujourd'hui" : "dernière année comparée" },
+    { k: "Écart à la moyenne", v: vsMean == null ? "—" : (vsMean > 0 ? "+" : "") + nf(vsMean, 1), u: "%",
+      n: `${last.year} par rapport à ${cmp.from}–${cmp.to}` },
+    { k: "Année la plus basse", v: lo ? nf(CENT(W(lo)), 2) : "—", u: unit, n: lo ? String(lo.year) : "" },
+    { k: "Année la plus haute", v: hi ? nf(CENT(W(hi)), 2) : "—", u: unit, n: hi ? String(hi.year) : "" },
+  ];
+  $("cmpTiles").innerHTML = tiles.map((x) =>
+    `<div class="tile"><div class="k">${x.k}</div><div class="v">${x.v}${x.u ? `<span class="u">${x.u}</span>` : ""}</div><div class="n">${x.n}</div></div>`
+  ).join("");
+
+  /* --- graphiques ---------------------------------------------------- */
+  const cats = rows.map(yearLabel);
+  const sW = { label: `Prix pondéré ${techShort}`, color: C1, values: rows.map((r) => CENT(W(r))) };
+  const sB = { label: "Prix moyen de base", color: C2, values: rows.map((r) => CENT(pickVal(r.res.total, "base"))) };
+  const note = rows.some((r) => r.range.clamped) ? " * période en cours, arrêtée à aujourd'hui." : "";
+  $("cmpCap1").textContent = `${per[0].toUpperCase() + per.slice(1)} de chaque année, en ${unit}.${note}`;
+  legend($("cmpLeg1"), [sW, sB]);
+  lineChart($("cmpBox1"), $("cmpTip1"), {
+    categories: cats, series: [sW, sB], points: true,
+    yFormat: (v) => nf(v, 2), yTitle: unit, height: 280,
+    a11yTitle: `Prix de référence ${per} par année`,
+    tooltipTitle: (k) => `${per} ${rows[k].year}` + (rows[k].range.clamped ? " (en cours)" : ""),
+    tooltipExtra: (k) => `<div class="r" style="color:var(--text-muted)"><span>Production</span><b>${nf(rows[k].res.total.energyMwh / 1000, 0)} GWh</b></div>`,
+  });
+
+  const sF = { label: "Facteur de valeur", color: C3,
+               values: rows.map((r) => (r.res.total.captureRate == null ? null : r.res.total.captureRate * 100)) };
+  $("cmpCap2").textContent =
+    `Prix pondéré ÷ prix de base, en %. Sa baisse au fil des ans traduit la cannibalisation : `
+    + `plus il y a de ${techShort}, plus il produit aux heures où il fait lui-même baisser le prix.`;
+  legend($("cmpLeg2"), [sF]);
+  lineChart($("cmpBox2"), $("cmpTip2"), {
+    categories: cats, series: [sF], points: true,
+    yFormat: (v) => nf(v, 0), yTitle: "%", height: 220,
+    a11yTitle: "Facteur de valeur par année",
+    tooltipTitle: (k) => `${per} ${rows[k].year}`,
+  });
+
+  /* --- tableau ------------------------------------------------------- */
+  const num = (v, d = 2) => `<td class="${v != null && v < 0 ? "neg" : ""}">${nf(v, d)}</td>`;
+  $("cmpCap3").textContent = `Prix en ${unit}. La variation compare le prix pondéré à celui de l'année précédente.`;
+  $("tblCmp").innerHTML =
+    `<thead><tr>${["Année", "Période", `Prix pondéré (${unit})`, `Prix de base (${unit})`, "Variation",
+      "Facteur de valeur", "Production (GWh)", "Énergie à prix négatif", "Couverture"].map((c) => `<th>${c}</th>`).join("")}</tr></thead>`
+    + "<tbody>" + rows.map((r, i) => {
+      const t = r.res.total;
+      const prev = i > 0 ? W(rows[i - 1]) : null;
+      const delta = prev && W(r) != null ? (W(r) / prev - 1) * 100 : null;
+      return `<tr><td>${yearLabel(r)}</td><td>${frDate(r.range.from).slice(0, 5)} → ${frDate(r.range.to).slice(0, 5)}</td>`
+        + `${num(CENT(W(r)))}${num(CENT(pickVal(t, "base")))}`
+        + `<td>${delta == null ? "—" : (delta > 0 ? "+" : "") + nf(delta, 1) + " %"}</td>`
+        + `<td>${t.captureRate == null ? "—" : nf(t.captureRate * 100, 1) + " %"}</td>`
+        + `<td>${nf(t.energyMwh / 1000, 0)}</td>`
+        + `<td>${nf(t.negShare * 100, 1)} %</td>`
+        + `<td>${nf(r.res.coverage * 100, 1)} %</td></tr>`;
+    }).join("") + "</tbody>"
+    + `<tfoot><tr><td>Moyenne</td><td></td>${num(CENT(mean))}`
+    + `${num(CENT(avg(rows.map((r) => pickVal(r.res.total, "base")))))}`
+    + `<td></td><td></td><td></td><td></td><td></td></tr></tfoot>`;
+}
+
 /** Durée théorique (s) de la part du mois `ym` incluse dans la période. */
 function expectedSecondsForMonth(ym, range) {
   const [y, m] = ym.split("-").map(Number);
@@ -1704,7 +2003,6 @@ function csvHeaderRows(res) {
 
 function bind() {
   const p = loadPrefs();
-  if (p.theme) document.documentElement.setAttribute("data-theme", p.theme);
   state.tech = p.tech || "Solar";
   state.currency = p.currency || "chf-daily";
   state.fixedRate = p.fixedRate || 0.94;
@@ -1719,6 +2017,21 @@ function bind() {
   state.quarter = qNow;
   $("selYear").value = String(yNow);
   syncQuarterAvailability();
+
+  // Comparaison : trimestre en cours, sur les sept dernières années.
+  const yearOpts = Array.from({ length: yNow - 2014 }, (_, i) => yNow - i)
+    .map((y) => `<option value="${y}">${y}</option>`).join("");
+  $("selCmpFrom").innerHTML = yearOpts;
+  $("selCmpTo").innerHTML = yearOpts;
+  state.cmpPeriod = "q" + qNow;
+  state.cmpFrom = Math.max(2015, yNow - 6);
+  state.cmpTo = yNow;
+  $("selCmpPeriod").value = state.cmpPeriod;
+  $("selCmpFrom").value = String(state.cmpFrom);
+  $("selCmpTo").value = String(state.cmpTo);
+  $("selCmpPeriod").onchange = (e) => { state.cmpPeriod = e.target.value; updateHint(); };
+  $("selCmpFrom").onchange = (e) => { state.cmpFrom = +e.target.value; updateHint(); };
+  $("selCmpTo").onchange = (e) => { state.cmpTo = +e.target.value; updateHint(); };
 
   const qStart = `${yNow}-${String((qNow - 1) * 3 + 1).padStart(2, "0")}-01`;
   $("dFrom").value = qStart;
@@ -1736,7 +2049,9 @@ function bind() {
     $("modeQuarter").setAttribute("aria-pressed", String(m === "quarter"));
     $("modeYear").setAttribute("aria-pressed", String(m === "year"));
     $("modeCustom").setAttribute("aria-pressed", String(m === "custom"));
-    $("fYear").classList.toggle("hidden", m === "custom");
+    $("modeCompare").setAttribute("aria-pressed", String(m === "compare"));
+    $("fYear").classList.toggle("hidden", m === "custom" || m === "compare");
+    for (const id of ["fCmpPeriod", "fCmpFrom", "fCmpTo"]) $(id).classList.toggle("hidden", m !== "compare");
     $("fQuarter").classList.toggle("hidden", m !== "quarter");
     for (const id of ["fFrom", "fTo"]) $(id).classList.toggle("hidden", m !== "custom");
     updateHint();
@@ -1744,6 +2059,7 @@ function bind() {
   $("modeQuarter").onclick = () => setMode("quarter");
   $("modeYear").onclick = () => setMode("year");
   $("modeCustom").onclick = () => setMode("custom");
+  $("modeCompare").onclick = () => setMode("compare");
 
   $("selYear").onchange = (e) => { state.year = +e.target.value; syncQuarterAvailability(); updateHint(); };
   $("fQuarter").onclick = (e) => {
@@ -1772,18 +2088,6 @@ function bind() {
 
   $("btnRun").onclick = run;
 
-  $("themeBtn").onclick = () => {
-    const cur = document.documentElement.getAttribute("data-theme") || "";
-    const next = cur === "" ? "light" : cur === "light" ? "dark" : "";
-    if (next) document.documentElement.setAttribute("data-theme", next);
-    else document.documentElement.removeAttribute("data-theme");
-    $("themeBtn").textContent = next === "light" ? "Thème clair" : next === "dark" ? "Thème sombre" : "Thème auto";
-    savePrefs();
-    charts.forEach(drawChart);
-  };
-  $("themeBtn").textContent =
-    p.theme === "light" ? "Thème clair" : p.theme === "dark" ? "Thème sombre" : "Thème auto";
-
   $("btnCsvM").onclick = () => {
     const r = state.last; if (!r) return;
     downloadCsv(`prix-reference-mensuel-${r.range.from}_${r.range.to}.csv`, [
@@ -1806,12 +2110,52 @@ function bind() {
     ]);
   };
 
+  $("btnCsvCmp").onclick = () => {
+    const c = state.lastCompare; if (!c) return;
+    downloadCsv(`comparaison-${c.period}-${c.from}_${c.to}.csv`, [
+      ["Prix de marche de reference - comparaison pluriannuelle"],
+      ["Technologie", state.tech],
+      ["Periode comparee", cmpPeriodLabel(c.period)],
+      ["Annees", c.from, c.to],
+      ["Monnaie", curCode()],
+      ["Source", "energy-charts.info (Fraunhofer ISE), CC BY 4.0"],
+      [],
+      ["Annee", "Du", "Au", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, "Facteur de valeur",
+       "Production (MWh)", "Energie a prix negatif", "Couverture"],
+      ...c.rows.map(({ year, range, res }) => [year, range.from, range.to,
+        nf(pickVal(res.total, "weighted"), 4), nf(pickVal(res.total, "base"), 4),
+        res.total.captureRate == null ? "" : nf(res.total.captureRate, 4),
+        nf(res.total.energyMwh, 1), nf(res.total.negShare, 4), nf(res.coverage, 4)]),
+    ]);
+  };
+
   setMode("quarter");
   updateHint();
 }
 
 bind();
 run();
+
+// ---------------------------------------------------------- application installable
+document.getElementById("copyYear").textContent = new Date().getFullYear();
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+let installPrompt = null;
+const installBtn = document.getElementById("installBtn");
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  installBtn.hidden = false;
+});
+installBtn.addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  installBtn.hidden = true;
+});
+window.addEventListener("appinstalled", () => { installBtn.hidden = true; });
 </script>
 </body>
 </html>

@@ -29,6 +29,8 @@ TIMEOUT = 60
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,
+                      ".webmanifest": "application/manifest+json"}
 
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=ROOT, **kw)
