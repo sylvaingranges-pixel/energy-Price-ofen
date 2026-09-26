@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prix de reprise PV — Suisse</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Prix PV">
 <style>
 /* ---------------------------------------------------------------- tokens */
 :root{
@@ -212,6 +220,17 @@ tfoot td{font-weight:650;color:var(--text-primary);border-top:1px solid var(--ax
   font-size:14px;text-align:center;color:var(--text-primary);overflow-x:auto;
 }
 footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
+footer .company{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:18px;padding-top:18px;border-top:1px solid var(--border)}
+footer .company img{height:30px;width:auto}
+footer .company address{font-style:normal;color:var(--text-secondary)}
+footer .company a{color:inherit}
+.brand{display:flex;align-items:flex-start;gap:14px}
+.brand-logo{width:44px;height:44px;flex:none;margin-top:2px}
+.top-actions{display:flex;gap:8px;align-items:center}
+.install-btn[hidden]{display:none}
+/* Logos noirs sur fond transparent : on les inverse en thème sombre. */
+:root[data-theme="dark"] .logo-ink{filter:invert(1)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .logo-ink{filter:invert(1)} }
 @media (max-width:640px){
   .wrap{padding:20px 14px 56px}
   .hero{gap:22px;padding:18px}
@@ -224,12 +243,18 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
 <div class="wrap">
 
 <header class="top">
-  <div>
+  <div class="brand">
+    <img class="brand-logo logo-ink" src="icons/gc-logo.png" alt="GC Energie SA" width="44" height="44">
+    <div>
     <h1>Prix de reprise du solaire injecté — Suisse</h1>
     <p class="subtitle">Estimation du prix de marché de référence PV (art.&nbsp;15 OEneR) à partir des prix spot
     day-ahead suisses et de la courbe de production photovoltaïque nationale, avant publication trimestrielle de l'OFEN.</p>
+    </div>
   </div>
-  <button class="theme-btn" id="themeBtn" type="button">Thème auto</button>
+  <div class="top-actions">
+    <button class="theme-btn install-btn" id="installBtn" type="button" hidden>Installer l'app</button>
+    <button class="theme-btn" id="themeBtn" type="button">Thème auto</button>
+  </div>
 </header>
 
 <section class="filters" aria-label="Paramètres du calcul">
@@ -415,7 +440,13 @@ footer{margin-top:28px;font-size:12px;color:var(--text-muted);text-align:center}
   </ul>
 </section>
 
-<footer>Estimation indicative — sans valeur contractuelle. Données sous licence CC BY 4.0 (Fraunhofer ISE / energy-charts.info).</footer>
+<footer>Estimation indicative — sans valeur contractuelle. Données sous licence CC BY 4.0 (Fraunhofer ISE / energy-charts.info).
+  <div class="company">
+    <img class="logo-ink" src="icons/gc-energie.png" alt="GC Energie SA" width="97" height="30">
+    <address>© <span id="copyYear">2026</span> GC Energie SA · Chemin-neuf 31, 1987 Hérémence ·
+      <a href="mailto:info@gcenergie.ch">info@gcenergie.ch</a></address>
+  </div>
+</footer>
 
 </div>
 <script>
@@ -1812,6 +1843,27 @@ function bind() {
 
 bind();
 run();
+
+// ---------------------------------------------------------- application installable
+document.getElementById("copyYear").textContent = new Date().getFullYear();
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+let installPrompt = null;
+const installBtn = document.getElementById("installBtn");
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  installBtn.hidden = false;
+});
+installBtn.addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  installBtn.hidden = true;
+});
+window.addEventListener("appinstalled", () => { installBtn.hidden = true; });
 </script>
 </body>
 </html>
