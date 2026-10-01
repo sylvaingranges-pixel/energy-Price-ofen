@@ -459,9 +459,19 @@
     "Solar"
    ],
    "bytes": 28363
+  },
+  "2026-Q3": {
+   "file": "2026-Q3.json",
+   "from": "2026-07-01",
+   "to": "2026-09-30",
+   "complete": true,
+   "techs": [
+    "Solar"
+   ],
+   "bytes": 28726
   }
  },
- "generated": "2026-09-25T07:28:00+00:00",
+ "generated": "2026-10-01T13:29:41+00:00",
  "bzn": "CH",
  "source": "energy-charts.info (Fraunhofer ISE), CC BY 4.0"
 }
