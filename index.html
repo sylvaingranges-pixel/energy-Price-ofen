@@ -794,6 +794,13 @@ class ApiUnreachable extends Error {
   get apiRefused() {
     return this.attempts.some((a) => a.strategy.kind !== "local" && a.error.httpStatus);
   }
+  /**
+   * Panne d'energy-charts : le relais n'est qu'un passe-plat, un 5xx y vient donc de l'API.
+   * L'appel direct échoue alors comme un blocage CORS, la page d'erreur n'en portant pas les en-têtes.
+   */
+  get serviceDown() {
+    return this.attempts.some((a) => a.error.httpStatus >= 500);
+  }
   /** Refus lié au débit : le message et la conduite à tenir ne sont pas les mêmes. */
   get rateLimited() {
     return this.attempts.some((a) => a.error.httpStatus === 429);
@@ -1359,7 +1366,13 @@ function setStatus(msg, kind = "", progress = null) {
 /** Bandeau d'erreur détaillé : ce qui a été tenté, ce qui a échoué, et quoi faire. */
 function unreachableHtml(err) {
   const lines = err.attempts
-    .map((a) => `<li>${esc(a.strategy.label)} — ${esc(describeFailure(a))}</li>`)
+    .map((a) => {
+      const why = err.serviceDown && a.strategy.kind === "direct" && !a.error.httpStatus
+        && a.error.name !== "AbortError"
+        ? "pas de réponse exploitable (le service est en panne, voir ci-dessous)"
+        : describeFailure(a);
+      return `<li>${esc(a.strategy.label)} — ${esc(why)}</li>`;
+    })
     .join("");
 
   let advice;
@@ -1367,6 +1380,10 @@ function unreachableHtml(err) {
     advice = "L'API limite le nombre de requêtes et refuse encore après plusieurs tentatives espacées. "
            + "Patientez une minute, puis relancez : les tranches déjà récupérées sont en cache et ne seront "
            + "pas redemandées.";
+  } else if (err.serviceDown) {
+    advice = "Le service energy-charts.info (Fraunhofer ISE) est momentanément indisponible : la panne est "
+           + "de leur côté, ni votre connexion ni ce site ne sont en cause. Relancez le calcul plus tard. "
+           + "Les trimestres terminés, lus dans l'archive du site, restent disponibles.";
   } else if (err.apiRefused) {
     advice = "L'API a répondu, mais en erreur : la période demandée est peut-être hors de sa couverture.";
   } else if (location.protocol === "file:") {
