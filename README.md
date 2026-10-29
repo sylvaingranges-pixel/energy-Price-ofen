@@ -95,7 +95,11 @@ cache du navigateur.
   utile pour voir si le trimestre est déjà « joué » ou encore ouvert.
 - Le profil moyen de la journée : prix horaire et production horaire, l'un au-dessus de l'autre.
 - Récapitulatif mensuel, détail journalier, export CSV des deux.
-- Part de la production tombant sous un prix négatif, et taux de couverture des données.
+- Nombre d'**heures à prix négatif** sur la période, part de la production tombant sous un prix négatif,
+  et **impact de ces prix négatifs** sur le prix pondéré et sur le prix de base : l'écart avec un calcul où
+  ils seraient ramenés à zéro, c'est-à-dire ce qu'ils retranchent à la moyenne. Repris par mois, dans la
+  comparaison pluriannuelle et dans les exports CSV.
+- Taux de couverture des données.
 
 Le calcul respecte l'heure suisse (`Europe/Zurich`), y compris les journées de 23 h et 25 h aux changements
 d'heure, et aligne en escalier des séries de pas différents (prix horaire ou au quart d'heure, production

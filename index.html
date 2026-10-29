@@ -794,6 +794,13 @@ class ApiUnreachable extends Error {
   get apiRefused() {
     return this.attempts.some((a) => a.strategy.kind !== "local" && a.error.httpStatus);
   }
+  /**
+   * Panne d'energy-charts : le relais n'est qu'un passe-plat, un 5xx y vient donc de l'API.
+   * L'appel direct échoue alors comme un blocage CORS, la page d'erreur n'en portant pas les en-têtes.
+   */
+  get serviceDown() {
+    return this.attempts.some((a) => a.error.httpStatus >= 500);
+  }
   /** Refus lié au débit : le message et la conduite à tenir ne sont pas les mêmes. */
   get rateLimited() {
     return this.attempts.some((a) => a.error.httpStatus === 429);
@@ -1019,6 +1026,9 @@ function makeBucket() {
     numEur: 0, numChf: 0, den: 0,        // pondéré par l'énergie (MWh)
     tNumEur: 0, tNumChf: 0, tDen: 0,     // pondéré par le temps (s)
     energy: 0, negEnergy: 0, seconds: 0, // MWh, MWh sous prix négatif, s couvertes
+    negSeconds: 0,                       // s sous prix négatif
+    negNumEur: 0, negNumChf: 0,          // part négative des numérateurs pondérés énergie
+    negTNumEur: 0, negTNumChf: 0,        // … et pondérés temps
     peakMw: 0,
   };
 }
@@ -1032,10 +1042,21 @@ function accumulate(b, priceEur, rate, mw, dt) {
   b.tDen += dt;
   b.energy += energy;
   b.seconds += dt;
-  if (priceEur < 0) b.negEnergy += energy;
+  if (priceEur < 0) {
+    b.negEnergy += energy;
+    b.negSeconds += dt;
+    b.negNumEur += priceEur * energy;
+    b.negNumChf += priceEur * rate * energy;
+    b.negTNumEur += priceEur * dt;
+    b.negTNumChf += priceEur * rate * dt;
+  }
   if (mw > b.peakMw) b.peakMw = mw;
 }
-/** Prix pondéré production (`weighted`) et prix de base pondéré temps (`base`). */
+/**
+ * Prix pondéré production (`weighted`) et prix de base pondéré temps (`base`).
+ * `negImpact*` : contribution des prix négatifs à ces moyennes, soit l'écart avec un calcul
+ * où ces prix seraient ramenés à zéro (toujours ≤ 0).
+ */
 function summarize(b) {
   const s = {
     weightedEur: b.den > 0 ? b.numEur / b.den : null,
@@ -1044,6 +1065,12 @@ function summarize(b) {
     baseChf: b.tDen > 0 ? b.tNumChf / b.tDen : null,
     energyMwh: b.energy,
     negShare: b.energy > 0 ? b.negEnergy / b.energy : 0,
+    negHours: b.negSeconds / 3600,
+    negTimeShare: b.seconds > 0 ? b.negSeconds / b.seconds : 0,
+    negImpactWeightedEur: b.den > 0 ? b.negNumEur / b.den : null,
+    negImpactWeightedChf: b.den > 0 ? b.negNumChf / b.den : null,
+    negImpactBaseEur: b.tDen > 0 ? b.negTNumEur / b.tDen : null,
+    negImpactBaseChf: b.tDen > 0 ? b.negTNumChf / b.tDen : null,
     seconds: b.seconds,
     peakMw: b.peakMw,
   };
@@ -1344,6 +1371,9 @@ const curCode = () => (state.currency === "eur" ? "EUR" : "CHF");
 const centUnit = () => (state.currency === "eur" ? "ct€/kWh" : "Rp./kWh");
 const pickVal = (o, k) => (state.currency === "eur" ? o[k + "Eur"] : o[k + "Chf"]);
 
+/** Durée en heures : entière au pas horaire, au quart d'heure près sinon. */
+const fmtHours = (h) => nf(h, Number.isInteger(h) ? 0 : 2);
+
 const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function setStatus(msg, kind = "", progress = null) {
@@ -1359,7 +1389,13 @@ function setStatus(msg, kind = "", progress = null) {
 /** Bandeau d'erreur détaillé : ce qui a été tenté, ce qui a échoué, et quoi faire. */
 function unreachableHtml(err) {
   const lines = err.attempts
-    .map((a) => `<li>${esc(a.strategy.label)} — ${esc(describeFailure(a))}</li>`)
+    .map((a) => {
+      const why = err.serviceDown && a.strategy.kind === "direct" && !a.error.httpStatus
+        && a.error.name !== "AbortError"
+        ? "pas de réponse exploitable (le service est en panne, voir ci-dessous)"
+        : describeFailure(a);
+      return `<li>${esc(a.strategy.label)} — ${esc(why)}</li>`;
+    })
     .join("");
 
   let advice;
@@ -1367,6 +1403,10 @@ function unreachableHtml(err) {
     advice = "L'API limite le nombre de requêtes et refuse encore après plusieurs tentatives espacées. "
            + "Patientez une minute, puis relancez : les tranches déjà récupérées sont en cache et ne seront "
            + "pas redemandées.";
+  } else if (err.serviceDown) {
+    advice = "Le service energy-charts.info (Fraunhofer ISE) est momentanément indisponible : la panne est "
+           + "de leur côté, ni votre connexion ni ce site ne sont en cause. Relancez le calcul plus tard. "
+           + "Les trimestres terminés, lus dans l'archive du site, restent disponibles.";
   } else if (err.apiRefused) {
     advice = "L'API a répondu, mais en erreur : la période demandée est peut-être hors de sa couverture.";
   } else if (location.protocol === "file:") {
@@ -1778,8 +1818,10 @@ function render(res) {
       n: "pondéré ÷ base" },
     { k: "Énergie pondérante", v: nf(t.energyMwh / 1000, 1), u: "GWh",
       n: `production ${techShort} nationale` },
-    { k: "Énergie à prix négatif", v: nf(t.negShare * 100, 1), u: "%",
-      n: "part de la production concernée" },
+    { k: "Heures à prix négatif", v: fmtHours(t.negHours), u: "h",
+      n: `${nf(t.negTimeShare * 100, 1)} % du temps · ${nf(t.negShare * 100, 1)} % de la production` },
+    { k: "Impact des prix négatifs", v: nf(CENT(pickVal(t, "negImpactWeighted")), 2), u: unit,
+      n: `sur le prix pondéré · ${nf(CENT(pickVal(t, "negImpactBase")), 2)} sur le prix de base` },
     { k: "Couverture des données", v: nf(res.coverage * 100, 1), u: "%",
       n: `${nf(res.gapSeconds / 3600, 0)} h sans donnée` },
     { k: "Conversion", v: state.currency === "eur" ? "aucune" : res.usedFx ? "BCE / jour" : nf(state.fixedRate, 3),
@@ -1844,19 +1886,24 @@ function render(res) {
   };
   const head = (cols) => `<thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
 
-  $("cap4").textContent = `Prix pondéré et prix de base par mois, en ${unit}.`;
+  $("cap4").textContent = `Prix pondéré et prix de base par mois, en ${unit}. L'impact des prix négatifs est l'écart `
+    + `avec un prix pondéré où ces prix seraient ramenés à zéro : ce qu'ils retranchent au prix de référence.`;
   $("tblMonth").innerHTML =
-    head(["Mois", `Prix pondéré (${unit})`, `Prix de base (${unit})`, "Facteur de valeur", "Production (GWh)", "Couverture"])
+    head(["Mois", `Prix pondéré (${unit})`, `Prix de base (${unit})`, "Facteur de valeur", "Production (GWh)",
+          "Heures à prix négatif", `Impact prix négatifs (${unit})`, "Couverture"])
     + "<tbody>" + res.months.map((m) => {
       const expected = expectedSecondsForMonth(m.month, res.range);
       return `<tr><td>${frMonth(m.month)}</td>${num(CENT(pickVal(m, "weighted")))}${num(CENT(pickVal(m, "base")))}`
         + `<td>${m.captureRate == null ? "—" : nf(m.captureRate * 100, 1) + " %"}</td>`
         + `<td>${nf(m.energyMwh / 1000, 2)}</td>`
+        + `<td>${fmtHours(m.negHours)}</td>${num(CENT(pickVal(m, "negImpactWeighted")))}`
         + `<td>${expected ? nf((m.seconds / expected) * 100, 1) + " %" : "—"}</td></tr>`;
     }).join("") + "</tbody>"
     + `<tfoot><tr><td>Total période</td>${num(CENT(pickVal(res.total, "weighted")))}${num(CENT(pickVal(res.total, "base")))}`
     + `<td>${res.total.captureRate == null ? "—" : nf(res.total.captureRate * 100, 1) + " %"}</td>`
-    + `<td>${nf(res.total.energyMwh / 1000, 2)}</td><td>${nf(res.coverage * 100, 1)} %</td></tr></tfoot>`;
+    + `<td>${nf(res.total.energyMwh / 1000, 2)}</td>`
+    + `<td>${fmtHours(res.total.negHours)}</td>${num(CENT(pickVal(res.total, "negImpactWeighted")))}`
+    + `<td>${nf(res.coverage * 100, 1)} %</td></tr></tfoot>`;
 
   $("tblDay").innerHTML =
     head(["Jour", `Prix pondéré (${unit})`, `Prix de base (${unit})`, `Cumulé (${unit})`, "Production (GWh)", "Pointe (MW)"])
@@ -1935,10 +1982,12 @@ function renderCompare(cmp) {
 
   /* --- tableau ------------------------------------------------------- */
   const num = (v, d = 2) => `<td class="${v != null && v < 0 ? "neg" : ""}">${nf(v, d)}</td>`;
-  $("cmpCap3").textContent = `Prix en ${unit}. La variation compare le prix pondéré à celui de l'année précédente.`;
+  $("cmpCap3").textContent = `Prix en ${unit}. La variation compare le prix pondéré à celui de l'année précédente ; `
+    + `l'impact des prix négatifs est ce qu'ils retranchent au prix pondéré (écart avec ces prix ramenés à zéro).`;
   $("tblCmp").innerHTML =
     `<thead><tr>${["Année", "Période", `Prix pondéré (${unit})`, `Prix de base (${unit})`, "Variation",
-      "Facteur de valeur", "Production (GWh)", "Énergie à prix négatif", "Couverture"].map((c) => `<th>${c}</th>`).join("")}</tr></thead>`
+      "Facteur de valeur", "Production (GWh)", "Énergie à prix négatif", "Heures à prix négatif",
+      `Impact prix négatifs (${unit})`, "Couverture"].map((c) => `<th>${c}</th>`).join("")}</tr></thead>`
     + "<tbody>" + rows.map((r, i) => {
       const t = r.res.total;
       const prev = i > 0 ? W(rows[i - 1]) : null;
@@ -1949,11 +1998,12 @@ function renderCompare(cmp) {
         + `<td>${t.captureRate == null ? "—" : nf(t.captureRate * 100, 1) + " %"}</td>`
         + `<td>${nf(t.energyMwh / 1000, 0)}</td>`
         + `<td>${nf(t.negShare * 100, 1)} %</td>`
+        + `<td>${fmtHours(t.negHours)}</td>${num(CENT(pickVal(t, "negImpactWeighted")))}`
         + `<td>${nf(r.res.coverage * 100, 1)} %</td></tr>`;
     }).join("") + "</tbody>"
     + `<tfoot><tr><td>Moyenne</td><td></td>${num(CENT(mean))}`
     + `${num(CENT(avg(rows.map((r) => pickVal(r.res.total, "base")))))}`
-    + `<td></td><td></td><td></td><td></td><td></td></tr></tfoot>`;
+    + `<td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tfoot>`;
 }
 
 /** Durée théorique (s) de la part du mois `ym` incluse dans la période. */
@@ -2092,11 +2142,12 @@ function bind() {
     const r = state.last; if (!r) return;
     downloadCsv(`prix-reference-mensuel-${r.range.from}_${r.range.to}.csv`, [
       ...csvHeaderRows(r),
-      ["Mois", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, "Facteur de valeur", "Production (MWh)"],
-      ...r.months.map((m) => [m.month, nf(pickVal(m, "weighted"), 4), nf(pickVal(m, "base"), 4),
-                              m.captureRate == null ? "" : nf(m.captureRate, 4), nf(m.energyMwh, 1)]),
-      ["TOTAL", nf(pickVal(r.total, "weighted"), 4), nf(pickVal(r.total, "base"), 4),
-       r.total.captureRate == null ? "" : nf(r.total.captureRate, 4), nf(r.total.energyMwh, 1)],
+      ["Mois", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, "Facteur de valeur", "Production (MWh)",
+       "Heures a prix negatif", `Impact prix negatifs, pondere (${curCode()}/MWh)`, `Impact prix negatifs, base (${curCode()}/MWh)`],
+      ...[...r.months.map((m) => [m.month, m]), ["TOTAL", r.total]].map(([k, m]) => [k,
+        nf(pickVal(m, "weighted"), 4), nf(pickVal(m, "base"), 4),
+        m.captureRate == null ? "" : nf(m.captureRate, 4), nf(m.energyMwh, 1), nf(m.negHours, 2),
+        nf(pickVal(m, "negImpactWeighted"), 4), nf(pickVal(m, "negImpactBase"), 4)]),
     ]);
   };
   $("btnCsvD").onclick = () => {
@@ -2104,9 +2155,10 @@ function bind() {
     const cum = new Map(r.cumulative.map((c) => [c.date, state.currency === "eur" ? c.eur : c.chf]));
     downloadCsv(`prix-reference-journalier-${r.range.from}_${r.range.to}.csv`, [
       ...csvHeaderRows(r),
-      ["Jour", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, `Cumule (${curCode()}/MWh)`, "Production (MWh)", "Pointe (MW)"],
+      ["Jour", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, `Cumule (${curCode()}/MWh)`, "Production (MWh)", "Pointe (MW)",
+       "Heures a prix negatif"],
       ...r.days.map((d) => [d.date, nf(pickVal(d, "weighted"), 4), nf(pickVal(d, "base"), 4),
-                            nf(cum.get(d.date), 4), nf(d.energyMwh, 1), nf(d.peakMw, 1)]),
+                            nf(cum.get(d.date), 4), nf(d.energyMwh, 1), nf(d.peakMw, 1), nf(d.negHours, 2)]),
     ]);
   };
 
@@ -2121,11 +2173,14 @@ function bind() {
       ["Source", "energy-charts.info (Fraunhofer ISE), CC BY 4.0"],
       [],
       ["Annee", "Du", "Au", `Prix pondere (${curCode()}/MWh)`, `Prix de base (${curCode()}/MWh)`, "Facteur de valeur",
-       "Production (MWh)", "Energie a prix negatif", "Couverture"],
+       "Production (MWh)", "Energie a prix negatif", "Heures a prix negatif",
+       `Impact prix negatifs, pondere (${curCode()}/MWh)`, `Impact prix negatifs, base (${curCode()}/MWh)`, "Couverture"],
       ...c.rows.map(({ year, range, res }) => [year, range.from, range.to,
         nf(pickVal(res.total, "weighted"), 4), nf(pickVal(res.total, "base"), 4),
         res.total.captureRate == null ? "" : nf(res.total.captureRate, 4),
-        nf(res.total.energyMwh, 1), nf(res.total.negShare, 4), nf(res.coverage, 4)]),
+        nf(res.total.energyMwh, 1), nf(res.total.negShare, 4), nf(res.total.negHours, 2),
+        nf(pickVal(res.total, "negImpactWeighted"), 4), nf(pickVal(res.total, "negImpactBase"), 4),
+        nf(res.coverage, 4)]),
     ]);
   };
 
